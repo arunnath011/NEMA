@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+*.env
+!.env.example
+.streamlit/secrets.toml
+
+.venv/
+venv/
+env/
+
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Data cache (re-fetched at runtime)
+data/cache/*.json
+data/cache/*.csv
+data/cache/*.parquet
+
+# Model artifacts are tracked for Streamlit Cloud deployment.
+# To regenerate: python -m nema_forecast.model.train && python -m nema_forecast.model.backtest
+
+.DS_Store
+Thumbs.db
+
+catboost_info/

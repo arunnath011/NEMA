@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nema-forecast"
+version = "1.0.0"
+description = "Production load forecasting pipeline for the NEMA (New England Mass Boston) zone using CatBoost"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "catboost>=1.2",
+    "pandas>=2.1",
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+    "requests>=2.31",
+    "streamlit>=1.32",
+    "plotly>=5.18",
+    "holidays>=0.40",
+    "python-dotenv>=1.0",
+    "pyarrow>=15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+    "mypy>=1.9",
+    "pre-commit>=3.7",
+    "pytest>=8.1",
+    "pytest-cov>=5.0",
+    "pandas-stubs>=2.1",
+]
+
+[project.scripts]
+nema-train = "nema_forecast.model.train:main"
+nema-backtest = "nema_forecast.model.backtest:main"
+nema-dashboard = "nema_forecast.dashboard.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "B007",    # loop variable not used (placeholder loops)
+    "B008",    # do not perform function calls in argument defaults
+    "B905",    # zip without strict= (ML arrays are always equal-length)
+    "N803",    # uppercase argument names (X, Y is standard ML convention)
+    "N806",    # uppercase variable names (X, Y is standard ML convention)
+    "RUF001",  # ambiguous unicode in markdown documentation strings
+    "RUF005",  # list concatenation style
+    "SIM108",  # ternary operator
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nema_forecast"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
