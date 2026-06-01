@@ -112,7 +112,7 @@ def render() -> None:
 
         # Autocorrelation of residuals
         st.markdown("**Residual Autocorrelation (first 72 lags)**")
-        resid_vals = residuals.dropna().values
+        resid_vals = residuals.dropna().to_numpy()
         n = len(resid_vals)
         mean_r = resid_vals.mean()
         denom = np.sum((resid_vals - mean_r) ** 2)

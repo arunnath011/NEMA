@@ -20,8 +20,8 @@ from nema_forecast.config import HORIZON, LAG_HOURS, LOOKBACK, ROLLING_WINDOWS
 
 logger = logging.getLogger(__name__)
 
-_US_HOLIDAYS = holidays.US(years=range(2017, 2027))
-_MA_HOLIDAYS = holidays.US(state="MA", years=range(2017, 2027))
+_US_HOLIDAYS = holidays.country_holidays("US", years=range(2017, 2027))
+_MA_HOLIDAYS = holidays.country_holidays("US", subdiv="MA", years=range(2017, 2027))
 
 BASE_TEMP_F = 65.0  # base temperature for HDD/CDD (°F)
 
@@ -103,7 +103,8 @@ def add_temperature_features(df: pd.DataFrame, temp_col: str = "temp") -> pd.Dat
 
 
 def _sigmoid(x: pd.Series, center: float, steepness: float = 0.3) -> pd.Series:
-    return 1 / (1 + np.exp(-steepness * (x - center)))
+    result: pd.Series = 1 / (1 + np.exp(-steepness * (x - center)))
+    return result
 
 
 # ---------------------------------------------------------------------------

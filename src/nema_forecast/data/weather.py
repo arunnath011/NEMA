@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 import pandas as pd
 import requests
@@ -31,7 +32,7 @@ _SESSION = requests.Session()
 
 def fetch_current_weather() -> dict:
     """Get current Boston weather from OpenWeatherMap (imperial units → °F)."""
-    params = {
+    params: dict[str, Any] = {
         "lat": BOSTON_LAT,
         "lon": BOSTON_LON,
         "appid": OWM_API_KEY,
@@ -48,7 +49,7 @@ def fetch_weather_forecast() -> pd.DataFrame:
 
     Returns hourly-interpolated DataFrame with the same columns as historical weather.
     """
-    params = {
+    params: dict[str, Any] = {
         "lat": BOSTON_LAT,
         "lon": BOSTON_LON,
         "appid": OWM_API_KEY,

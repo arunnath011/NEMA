@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 import pandas as pd
 import requests
@@ -41,7 +42,7 @@ def fetch_eia_demand_recent(days_back: int = 10) -> pd.DataFrame:
 
     end = datetime.utcnow()
     start = end - timedelta(days=days_back)
-    params = {
+    params: dict[str, Any] = {
         "api_key": EIA_API_KEY,
         "frequency": "hourly",
         "data[0]": "value",

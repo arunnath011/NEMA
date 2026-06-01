@@ -50,7 +50,8 @@ def load_metrics() -> dict:
     path = MODELS_DIR / "model_performance.json"
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    data: dict = json.loads(path.read_text())
+    return data
 
 
 @st.cache_data(ttl=300)
@@ -58,7 +59,8 @@ def load_backtest_metrics() -> dict:
     path = MODELS_DIR / "backtest_metrics.json"
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    data: dict = json.loads(path.read_text())
+    return data
 
 
 @st.cache_data(ttl=300)
@@ -66,7 +68,8 @@ def load_feature_importance() -> dict:
     path = MODELS_DIR / "feature_importance.json"
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    data: dict = json.loads(path.read_text())
+    return data
 
 
 # ---------------------------------------------------------------------------

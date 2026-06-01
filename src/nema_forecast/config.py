@@ -15,7 +15,7 @@ def _get_secret(key: str, default: str = "") -> str:
     try:
         import streamlit as st
 
-        return st.secrets.get(key, os.getenv(key, default))
+        return str(st.secrets.get(key, os.getenv(key, default)))
     except (ImportError, AttributeError, FileNotFoundError):
         return os.getenv(key, default)
 

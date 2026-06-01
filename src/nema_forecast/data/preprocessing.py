@@ -78,7 +78,8 @@ def save_imputation_stats(stats: dict[str, float], path: Path | None = None) -> 
 
 def load_imputation_stats(path: Path | None = None) -> dict[str, float]:
     path = path or DATA_CACHE_DIR / "imputation_stats.json"
-    return json.loads(path.read_text())
+    stats: dict[str, float] = json.loads(path.read_text())
+    return stats
 
 
 def apply_imputation(df: pd.DataFrame, stats: dict[str, float]) -> pd.DataFrame:
