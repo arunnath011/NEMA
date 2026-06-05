@@ -51,7 +51,7 @@ def main() -> None:
 
         st.divider()
         st.caption("Data: ISO-NE · OpenWeatherMap")
-        st.caption("Model: CatBoost v1.0")
+        st.caption("Model: Beacon v1.0")
 
     # --- Page dispatch ---
     if page == "Executive Summary":

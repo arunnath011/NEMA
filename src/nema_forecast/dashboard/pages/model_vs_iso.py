@@ -1,4 +1,4 @@
-"""Page 3 — Model vs ISO-NE: deep comparison between CatBoost and ISO-NE forecasts."""
+"""Page 3 — Model vs ISO-NE: deep comparison between Beacon and ISO-NE forecasts."""
 
 from __future__ import annotations
 
@@ -15,27 +15,38 @@ from nema_forecast.dashboard.components import (
     RED,
     bar_chart,
     dual_bar_chart,
-    load_backtest_results,
-    load_test_results,
     scatter_chart,
     timeseries_chart,
 )
+from nema_forecast.dashboard.live_data import build_recent_comparison
 from nema_forecast.model.backtest import compute_hourly_metrics, compute_monthly_metrics
+
+COMPARISON_DAYS = 30
 
 
 def render() -> None:
-    st.title("CatBoost vs ISO-NE Forecast")
+    st.title("Beacon vs ISO-NE Forecast")
     st.markdown(
-        "Side-by-side evaluation of the CatBoost model against the official "
-        "ISO New England three-day reliability region demand forecast for NEMA."
+        f"Live, side-by-side evaluation of the **Beacon** model against ISO New England's "
+        f"day-ahead demand forecast for NEMA, over the last **{COMPARISON_DAYS} days** of "
+        "available data."
     )
 
-    bt = load_backtest_results()
+    with st.spinner("Building live comparison from ISO-NE data …"):
+        bt = build_recent_comparison(days=COMPARISON_DAYS)
+
     if bt.empty:
-        bt = load_test_results()
-    if bt.empty:
-        st.warning("No comparison data available. Run training and backtest first.")
+        st.warning(
+            "No live comparison data available. This page needs ISO-NE Web Services "
+            "credentials (ISO_NE_WS_USER / ISO_NE_WS_PASS) and the trained model."
+        )
         return
+
+    latest = bt["datetime"].max()
+    st.caption(
+        f"Data through **{latest:%b %d, %Y %H:%M}** · {len(bt):,} hours · "
+        "actual = ISO-NE real-time demand, benchmark = ISO-NE day-ahead demand."
+    )
 
     has_iso = "iso_forecast" in bt.columns and bt["iso_forecast"].notna().any()
 
@@ -62,7 +73,7 @@ def render() -> None:
         if week_df.empty:
             week_df = bt.tail(168)
 
-        ts_cols: dict[str, str] = {"actual": "Actual", "catboost_pred": "CatBoost"}
+        ts_cols: dict[str, str] = {"actual": "Actual", "catboost_pred": "Beacon"}
         if has_iso:
             ts_cols["iso_forecast"] = "ISO-NE"
         st.plotly_chart(timeseries_chart(week_df, ts_cols, ylabel="Load (MW)"), use_container_width=True)
@@ -73,9 +84,9 @@ def render() -> None:
     with tab_scatter:
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("**CatBoost**")
+            st.markdown("**Beacon**")
             st.plotly_chart(
-                scatter_chart(bt["actual"], bt["catboost_pred"], label="CatBoost", colour=BLUE),
+                scatter_chart(bt["actual"], bt["catboost_pred"], label="Beacon", colour=BLUE),
                 use_container_width=True,
             )
         with c2:
@@ -95,7 +106,7 @@ def render() -> None:
     with tab_error:
         fig = go.Figure()
         cat_err = bt["catboost_pred"] - bt["actual"]
-        fig.add_trace(go.Histogram(x=cat_err, nbinsx=80, name="CatBoost", marker_color=BLUE, opacity=0.7))
+        fig.add_trace(go.Histogram(x=cat_err, nbinsx=80, name="Beacon", marker_color=BLUE, opacity=0.7))
         if has_iso:
             iso_err = bt["iso_forecast"] - bt["actual"]
             fig.add_trace(go.Histogram(x=iso_err.dropna(), nbinsx=80, name="ISO-NE", marker_color=GREEN, opacity=0.6))
@@ -113,7 +124,7 @@ def render() -> None:
         # Error statistics table
         stats_rows = [
             {
-                "Model": "CatBoost",
+                "Model": "Beacon",
                 "Mean Error": f"{cat_err.mean():.1f}",
                 "Std Dev": f"{cat_err.std():.1f}",
                 "Median": f"{cat_err.median():.1f}",

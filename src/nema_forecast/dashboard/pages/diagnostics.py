@@ -151,7 +151,7 @@ def render() -> None:
         tests = [
             ("Temporal Separation", "Train ends 2024-12-31, test starts 2025-01-01. Gap ≥ 168 h.", "PASS"),
             ("Feature-Target Correlation", "No non-lag features with >0.99 correlation to target.", "PASS"),
-            ("Naive Baseline Comparison", "CatBoost beats lag-1 persistence by >5%.", "PASS"),
+            ("Naive Baseline Comparison", "Beacon beats lag-1 persistence by >5%.", "PASS"),
             ("Shuffled Target", "Shuffled-target model degrades >50% — confirms real signal.", "PASS"),
             ("Feature Importance", "RTLO lag features are dominant (expected for load forecasting).", "PASS"),
             ("Remove RTLO Features", "Removing RTLO degrades MAE — lags carry genuine information.", "PASS"),

@@ -44,9 +44,9 @@ def render() -> None:
             - **Cost optimisation** — better forecasts reduce the need for expensive peaking generation.
 
             ISO New England publishes an official **three-day reliability region demand forecast**
-            that grid operators rely on.  This project builds a **CatBoost gradient-boosting model**
-            that uses historical load patterns and weather data to produce more accurate hourly
-            forecasts for the NEMA zone.
+            that grid operators rely on.  This project builds **Beacon** — a CatBoost
+            gradient-boosting model — that uses historical load patterns and weather data to
+            produce more accurate hourly forecasts for the NEMA zone.
             """
         )
 
@@ -242,11 +242,12 @@ def render() -> None:
     # MODEL ARCHITECTURE
     # ==================================================================
     with tab_model:
-        st.header("Why CatBoost?")
+        st.header("Under the Hood: Why CatBoost?")
         st.markdown(
             """
-            **CatBoost** (Categorical Boosting) is a gradient-boosted decision tree library
-            developed by Yandex.  We chose it for NEMA load forecasting because:
+            Beacon is powered by **CatBoost** (Categorical Boosting), a gradient-boosted
+            decision tree library developed by Yandex.  We chose it for NEMA load forecasting
+            because:
 
             1. **Handles missing values natively** — our weather data has gaps; CatBoost
                uses optimal split conditions for NaN without requiring imputation heuristics.
@@ -415,7 +416,7 @@ def render() -> None:
         st.header("How We Beat the ISO-NE Forecast")
         st.markdown(
             """
-            The CatBoost model consistently outperforms the official ISO-NE three-day
+            Beacon consistently outperforms the official ISO-NE three-day
             forecast on the NEMA zone.  The primary reasons:
 
             **1. Autoregressive lag features capture recent trends the ISO misses.**
@@ -502,13 +503,13 @@ def render() -> None:
         st.header("Fallback Strategy")
         st.markdown(
             """
-            If the CatBoost model fails (API down, corrupt data, etc.):
+            If Beacon fails (API down, corrupt data, etc.):
 
             1. **Primary fallback:** Use the ISO-NE three-day forecast.
             2. **Secondary fallback:** Seasonal naïve baseline (same hour, same day last week).
             3. **Emergency fallback:** Historical average by hour × day-of-week.
 
-            The dashboard automatically detects when CatBoost predictions are unavailable
+            The dashboard automatically detects when Beacon predictions are unavailable
             and shows the fallback in use.
             """
         )

@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from nema_forecast.config import LOOKBACK, MODELS_DIR
-from nema_forecast.dashboard.components import BLUE, GREEN, GREY, RED, timeseries_chart
+from nema_forecast.dashboard.components import BLUE, GREEN, GREY, RED
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def render() -> None:
                 x=forecast_df["datetime"],
                 y=forecast_df["forecast_mw"],
                 mode="lines+markers",
-                name="CatBoost Forecast",
+                name="Beacon Forecast",
                 line={"color": GREEN, "width": 2.5, "dash": "dash"},
                 marker={"size": 5},
             )
@@ -169,15 +169,45 @@ def render() -> None:
     st.divider()
 
     # ------------------------------------------------------------------
-    # Last 7 days actual load
+    # Last 7 days — actual vs Beacon hindcast
     # ------------------------------------------------------------------
-    st.subheader("Last 7 Days — Actual NEMA Load")
+    st.subheader("Last 7 Days — Actual vs Beacon Forecast")
     last_week = recent_load.tail(168).copy()
     last_week = last_week.rename(columns={"RTLO": "actual"})
-    fig2 = timeseries_chart(last_week, {"actual": "Actual Load (MW)"}, ylabel="Load (MW)")
+
+    hind = _hindcast_cached(recent_load)
+
+    fig2 = go.Figure()
+    fig2.add_trace(
+        go.Scatter(
+            x=last_week["datetime"],
+            y=last_week["actual"],
+            mode="lines",
+            name="Actual Load",
+            line={"color": BLUE, "width": 2},
+        )
+    )
+    if not hind.empty:
+        hw = hind.tail(168)
+        fig2.add_trace(
+            go.Scatter(
+                x=hw["datetime"],
+                y=hw["forecast_mw"],
+                mode="lines",
+                name="Beacon Forecast",
+                line={"color": GREEN, "width": 2, "dash": "dash"},
+            )
+        )
+    fig2.update_layout(
+        yaxis_title="Load (MW)",
+        template="plotly_white",
+        legend={"orientation": "h", "y": 1.1},
+        height=400,
+        margin={"t": 40, "b": 40, "l": 60, "r": 20},
+    )
     st.plotly_chart(fig2, use_container_width=True)
 
-    # Summary stats
+    # Summary stats — load + Beacon accuracy over the window
     c1, c2, c3, c4 = st.columns(4)
     rtlo = last_week["actual"]
     with c1:
@@ -187,7 +217,13 @@ def render() -> None:
     with c3:
         st.metric("7-Day Min", f"{rtlo.min():,.0f} MW")
     with c4:
-        st.metric("Std Dev", f"{rtlo.std():,.0f} MW")
+        if not hind.empty:
+            hw = hind.tail(168)
+            err = (hw["forecast_mw"] - hw["actual"]).abs()
+            mape = (err / hw["actual"].abs()).mean() * 100
+            st.metric("Beacon MAE", f"{err.mean():,.0f} MW", help=f"MAPE {mape:.1f}%")
+        else:
+            st.metric("Std Dev", f"{rtlo.std():,.0f} MW")
 
     # ------------------------------------------------------------------
     # 5-Day weather forecast
@@ -246,9 +282,9 @@ def _fetch_recent_load_cached() -> tuple[pd.DataFrame, str]:
     """
     from nema_forecast.data.load_source import get_recent_demand
 
-    # ISO-NE realtimehourlydemand lags ~4 days, so request a wider window to ensure the
-    # 168 h (7-day) lookback is comfortably covered after the most recent empty days.
-    return get_recent_demand(days_back=14)
+    # ISO-NE realtimehourlydemand lags ~4 days. Request ~3 weeks so we have enough history
+    # for BOTH the 168 h lookback AND a full 7-day rolling hindcast on the last-week chart.
+    return get_recent_demand(days_back=21)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -257,6 +293,24 @@ def _fetch_dayahead_cached() -> pd.DataFrame:
     from nema_forecast.data.iso_ne_ws import fetch_dayahead_demand_recent
 
     return fetch_dayahead_demand_recent(days_back=3)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _hindcast_cached(recent_load: pd.DataFrame) -> pd.DataFrame:
+    """Beacon rolling hindcast over the last 7 days — cached 1 h.
+
+    Returns ``[datetime, actual, forecast_mw]`` (empty if the model or data is unavailable).
+    """
+    empty = pd.DataFrame(columns=["datetime", "actual", "forecast_mw"])
+    if not (MODELS_DIR / "catboost_model.cbm").exists():
+        return empty
+    try:
+        from nema_forecast.model.inference import load_model, predict_hindcast
+
+        return predict_hindcast(recent_load, model=load_model(), max_hours=168)
+    except Exception as exc:
+        logger.error("Hindcast failed: %s", exc, exc_info=True)
+        return empty
 
 
 def _run_live_inference(recent_load: pd.DataFrame, weather: dict) -> pd.DataFrame | None:

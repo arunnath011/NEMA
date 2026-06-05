@@ -85,7 +85,7 @@ def timeseries_chart(
 ) -> go.Figure:
     """Build a multi-line time-series Plotly figure.
 
-    *cols* maps column names → display labels, e.g. ``{"actual": "Actual", "catboost_pred": "CatBoost"}``.
+    *cols* maps column names → display labels, e.g. ``{"actual": "Actual", "catboost_pred": "Beacon"}``.
     """
     colours = [BLUE, GREEN, RED, GREY, LIGHT_BLUE]
     fig = go.Figure()
@@ -172,7 +172,7 @@ def dual_bar_chart(
     x: list,
     y1: list,
     y2: list,
-    label1: str = "CatBoost",
+    label1: str = "Beacon",
     label2: str = "ISO-NE",
 ) -> go.Figure:
     fig = go.Figure()
