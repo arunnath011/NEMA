@@ -26,6 +26,9 @@ data/cache/*.parquet
 # Model artifacts are tracked for Streamlit Cloud deployment.
 # To regenerate: python -m nema_forecast.model.train && python -m nema_forecast.model.backtest
 
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json
+
 .DS_Store
 Thumbs.db
 

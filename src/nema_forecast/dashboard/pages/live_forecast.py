@@ -246,7 +246,9 @@ def _fetch_recent_load_cached() -> tuple[pd.DataFrame, str]:
     """
     from nema_forecast.data.load_source import get_recent_demand
 
-    return get_recent_demand(days_back=10)
+    # ISO-NE realtimehourlydemand lags ~4 days, so request a wider window to ensure the
+    # 168 h (7-day) lookback is comfortably covered after the most recent empty days.
+    return get_recent_demand(days_back=14)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

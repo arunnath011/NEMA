@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nema-dashboard",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "src/nema_forecast/dashboard/app.py", "--server.port=8507", "--server.headless=true"],
+      "port": 8507,
+      "autoPort": false
+    }
+  ]
+}

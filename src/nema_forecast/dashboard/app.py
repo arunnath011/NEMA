@@ -70,6 +70,31 @@ def _inject_css() -> None:
     st.markdown(
         """
         <style>
+        /* Force a consistent light palette regardless of config.toml load or OS dark
+           mode. Without this, a dark Streamlit base + the hard-coded light cards/sidebar
+           below render as a "half dark, half white" UI. */
+        :root { color-scheme: light; }
+        [data-testid="stAppViewContainer"],
+        [data-testid="stHeader"],
+        .stApp,
+        [data-testid="stMain"],
+        [data-testid="stMain"] .block-container {
+            background-color: #FAFCFE !important;
+            color: #1C2833 !important;
+        }
+        [data-testid="stMain"] h1,
+        [data-testid="stMain"] h2,
+        [data-testid="stMain"] h3,
+        [data-testid="stMain"] h4,
+        [data-testid="stMain"] p,
+        [data-testid="stMain"] li,
+        [data-testid="stMain"] span,
+        [data-testid="stMain"] label,
+        [data-testid="stMarkdownContainer"] {
+            color: #1C2833 !important;
+        }
+        section[data-testid="stSidebar"] * { color: #1C2833 !important; }
+
         /* KPI metric cards */
         div[data-testid="stMetric"] {
             background: white;

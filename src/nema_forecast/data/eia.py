@@ -12,7 +12,6 @@ Like the ISO-NE Web Services client, the demand series is returned under the col
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -33,26 +32,30 @@ _ISO_NE_TZ = "America/New_York"
 
 
 def fetch_eia_demand_recent(days_back: int = 10) -> pd.DataFrame:
-    """Fetch recent NEMA hourly demand from the EIA API. Returns ``[datetime, RTLO]``."""
+    """Fetch the most recent *available* NEMA hourly demand from EIA. Returns ``[datetime, RTLO]``.
+
+    The EIA subregion (EIA-930) feed publishes with a multi-week lag, so the query is *not*
+    anchored to ``now`` — that would request a window newer than any published data and return
+    nothing. Instead it pulls the most recent rows by sorting descending, which yields whatever
+    the latest available data is regardless of the lag. *days_back* sets how many days of those
+    most-recent hours to retrieve (a floor of 10 days keeps ≥168 h for the lookback window).
+    """
     if not EIA_API_KEY:
         raise RuntimeError(
             "EIA_API_KEY missing. Get a free key instantly at "
             "https://www.eia.gov/opendata/register.php and set it in .env / Streamlit secrets."
         )
 
-    end = datetime.utcnow()
-    start = end - timedelta(days=days_back)
+    length = max(days_back, 10) * 24
     params: dict[str, Any] = {
         "api_key": EIA_API_KEY,
         "frequency": "hourly",
         "data[0]": "value",
         "facets[parent][]": EIA_ISNE_PARENT,
         "facets[subba][]": EIA_NEMA_SUBBA,
-        "start": start.strftime("%Y-%m-%dT%H"),
-        "end": end.strftime("%Y-%m-%dT%H"),
         "sort[0][column]": "period",
-        "sort[0][direction]": "asc",
-        "length": 5000,
+        "sort[0][direction]": "desc",
+        "length": length,
     }
 
     try:
