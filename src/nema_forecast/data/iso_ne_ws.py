@@ -167,20 +167,49 @@ def fetch_dayahead_demand_recent(
 # ---------------------------------------------------------------------------
 
 
-def _fetch_and_parse(url: str, *, wrapper: str, item: str, value_col: str) -> pd.DataFrame:
-    """GET *url* and parse an ISO-NE hourly-demand JSON payload."""
-    try:
-        resp = _ws_session().get(url, timeout=30)
-        resp.raise_for_status()
-        payload = resp.json()
-    except requests.RequestException as exc:
-        logger.warning("ISO-NE WS request failed (%s): %s", url, exc)
-        return pd.DataFrame(columns=["datetime", value_col])
-    except ValueError as exc:  # JSON decode
-        logger.warning("ISO-NE WS returned non-JSON (%s): %s", url, exc)
-        return pd.DataFrame(columns=["datetime", value_col])
+def _fetch_and_parse(url: str, *, wrapper: str, item: str, value_col: str, max_retries: int = 5) -> pd.DataFrame:
+    """GET *url* and parse an ISO-NE hourly-demand JSON payload.
 
-    return parse_demand(payload, wrapper=wrapper, item=item, value_col=value_col)
+    Retries on rate-limit (429) and server (5xx) responses with exponential backoff,
+    honouring a ``Retry-After`` header when present, so bulk backfills and live page loads
+    survive transient throttling. Other errors return an empty frame (no retry).
+    """
+    empty = pd.DataFrame(columns=["datetime", value_col])
+    for attempt in range(max_retries):
+        try:
+            resp = _ws_session().get(url, timeout=30)
+        except requests.RequestException as exc:
+            wait = 2**attempt
+            logger.warning("ISO-NE WS connection error (%s); retry in %ds", exc, wait)
+            time.sleep(wait)
+            continue
+
+        if resp.status_code == 429 or resp.status_code >= 500:
+            wait = float(resp.headers.get("Retry-After", 2**attempt))
+            logger.warning(
+                "ISO-NE WS %d rate-limited; backing off %.0fs (attempt %d/%d)",
+                resp.status_code,
+                wait,
+                attempt + 1,
+                max_retries,
+            )
+            time.sleep(min(wait, 60))
+            continue
+
+        try:
+            resp.raise_for_status()
+            payload = resp.json()
+        except requests.RequestException as exc:
+            logger.warning("ISO-NE WS request failed (%s): %s", url, exc)
+            return empty
+        except ValueError as exc:  # JSON decode
+            logger.warning("ISO-NE WS returned non-JSON (%s): %s", url, exc)
+            return empty
+
+        return parse_demand(payload, wrapper=wrapper, item=item, value_col=value_col)
+
+    logger.warning("ISO-NE WS gave up after %d retries: %s", max_retries, url)
+    return empty
 
 
 def parse_demand(payload: dict, *, wrapper: str, item: str, value_col: str) -> pd.DataFrame:
