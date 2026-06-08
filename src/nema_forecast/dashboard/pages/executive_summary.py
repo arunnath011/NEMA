@@ -5,7 +5,11 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from nema_forecast.dashboard.components import timeseries_chart
+from nema_forecast.dashboard.components import (
+    horizon_accuracy_chart,
+    load_horizon_mae,
+    timeseries_chart,
+)
 from nema_forecast.dashboard.live_data import build_recent_comparison
 from nema_forecast.model.backtest import compute_metrics
 
@@ -16,7 +20,9 @@ def render() -> None:
     st.title("Executive Summary")
     st.markdown(
         "High-level **Beacon** performance for the **NEMA (New England Mass Boston)** load "
-        f"zone, computed live over the last **{COMPARISON_DAYS} days** of ISO-NE data."
+        f"zone — **day-ahead (24 h)** forecast vs ISO-NE's day-ahead, over the last "
+        f"**{COMPARISON_DAYS} days** of live data (horizon-matched, both using Open-Meteo "
+        "weather forecasts)."
     )
 
     with st.spinner("Building live performance summary from ISO-NE data …"):
@@ -93,6 +99,29 @@ def render() -> None:
         st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
     st.divider()
+
+    # ------------------------------------------------------------------
+    # Headline improvement: forecast accuracy by horizon
+    # ------------------------------------------------------------------
+    hm = load_horizon_mae()
+    if hm:
+        st.subheader("Forecast Accuracy by Horizon — the Beacon improvement")
+        direct, single = hm["direct_mae"], hm["single_model_mae"]
+        impr = (sum(single) - sum(direct)) / sum(single) * 100
+        st.markdown(
+            f"Beacon trains a **separate model per hour ahead** with the target-hour weather "
+            f"forecast, so day-ahead error stays low where the old single-model approach blew "
+            f"up. Day-ahead (h=24) MAE: **{direct[-1]:.0f} MW** vs the old approach's "
+            f"**{single[-1]:.0f} MW** — **{impr:.0f}% better across the 24-hour horizon**."
+        )
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Day-ahead MAE (h=24)", f"{direct[-1]:.0f} MW", help="Old single-model approach")
+        c2.metric(
+            "vs old approach", f"{single[-1]:.0f} MW", delta=f"-{single[-1]-direct[-1]:.0f} MW", delta_color="inverse"
+        )
+        c3.metric("Avg improvement across 24h", f"{impr:.0f}%")
+        st.plotly_chart(horizon_accuracy_chart(hm), use_container_width=True)
+        st.divider()
 
     # ------------------------------------------------------------------
     # Rolling 7-day performance

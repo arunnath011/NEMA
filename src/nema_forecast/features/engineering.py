@@ -225,3 +225,38 @@ def extract_lag_features(
             keep_names.append(name)
 
     return all_features[:, keep_idx], keep_names
+
+
+# ---------------------------------------------------------------------------
+# Target-hour exogenous features (calendar + forecast weather at the target)
+# ---------------------------------------------------------------------------
+
+
+def target_exog_indices(feature_cols: list[str]) -> list[int]:
+    """Column indices of exogenous features (everything except RTLO).
+
+    These are calendar features (exactly known for any future hour) and weather features
+    (the forecast). RTLO is excluded because RTLO at the target hour *is* the target.
+    """
+    return [i for i, c in enumerate(feature_cols) if c != "RTLO"]
+
+
+def target_exog_names(feature_cols: list[str]) -> list[str]:
+    return [f"{c}_at_target" for c in feature_cols if c != "RTLO"]
+
+
+def extract_target_exog(
+    values: np.ndarray,
+    feature_cols: list[str],
+    h: int,
+    lookback: int = LOOKBACK,
+    horizon: int = HORIZON,
+) -> np.ndarray:
+    """Exogenous engineered features at the target hour ``t+h`` for each create_sequences sample.
+
+    Aligns 1:1 with ``create_sequences`` (samples are ``t in range(lookback, n-horizon)``), so
+    it can be horizontally stacked onto the lag-feature matrix for horizon model ``h`` (0-based).
+    """
+    idx = target_exog_indices(feature_cols)
+    n = len(values)
+    return np.stack([values[t + h, idx] for t in range(lookback, n - horizon)])

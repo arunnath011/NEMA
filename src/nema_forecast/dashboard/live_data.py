@@ -13,9 +13,17 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from nema_forecast.config import LOOKBACK
+from nema_forecast.config import HORIZON, LOOKBACK
 
 logger = logging.getLogger(__name__)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_model_weather() -> pd.DataFrame:
+    """Open-Meteo recent + forecast hourly weather (the same source the model trains on)."""
+    from nema_forecast.data.open_meteo import fetch_recent_weather
+
+    return fetch_recent_weather(past_days=92, forecast_days=5)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -23,27 +31,29 @@ def build_recent_comparison(days: int = 30) -> pd.DataFrame:
     """Build a live ``[datetime, actual, catboost_pred, iso_forecast]`` comparison frame.
 
     * ``actual`` — ISO-NE real-time hourly demand (NEMA).
-    * ``catboost_pred`` — Beacon's one-step-ahead hindcast for each hour.
+    * ``catboost_pred`` — Beacon's **day-ahead** (24 h) forecast, using Open-Meteo weather at
+      the target hour — the horizon that matches ISO's published forecast (apples-to-apples).
     * ``iso_forecast`` — ISO-NE day-ahead hourly demand (the benchmark).
 
-    The column name ``catboost_pred`` is kept for compatibility with the existing chart and
-    metric helpers; it holds the Beacon model's predictions.
+    The column name ``catboost_pred`` is kept for compatibility with the chart/metric helpers.
     """
     from nema_forecast.data.iso_ne_ws import (
         fetch_dayahead_demand_recent,
         fetch_realtime_demand_recent,
     )
-    from nema_forecast.model.inference import load_model, predict_hindcast
+    from nema_forecast.model.inference import predict_dayahead_hindcast
+
+    weather = get_model_weather()
 
     cols = ["datetime", "actual", "catboost_pred", "iso_forecast"]
 
-    # Fetch enough actuals to cover the comparison window *plus* the lookback + publish lag.
-    actual = fetch_realtime_demand_recent(days_back=days + 10)
-    if actual.empty or len(actual) < LOOKBACK + 1:
+    # Fetch enough actuals to cover the comparison window *plus* the lookback + day-ahead offset.
+    actual = fetch_realtime_demand_recent(days_back=days + 12)
+    if actual.empty or len(actual) < LOOKBACK + HORIZON + 1:
         logger.warning("Not enough real-time demand to build comparison (%d rows)", len(actual))
         return pd.DataFrame(columns=cols)
 
-    hind = predict_hindcast(actual, model=load_model(), max_hours=days * 24)
+    hind = predict_dayahead_hindcast(actual, weather, max_hours=days * 24)
     if hind.empty:
         return pd.DataFrame(columns=cols)
     df = hind.rename(columns={"forecast_mw": "catboost_pred"})

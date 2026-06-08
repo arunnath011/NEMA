@@ -11,8 +11,10 @@ from nema_forecast.dashboard.components import (
     BLUE,
     GREY,
     RED,
+    horizon_accuracy_chart,
     load_backtest_results,
     load_feature_importance,
+    load_horizon_mae,
     load_metrics,
     load_test_results,
 )
@@ -27,9 +29,34 @@ def render() -> None:
         st.warning("Train the model first to generate diagnostic data.")
         return
 
-    tab_fi, tab_res, tab_leak, tab_ablation = st.tabs(
-        ["Feature Importance", "Residual Analysis", "Leakage Tests", "RTLO Ablation"]
+    tab_horizon, tab_fi, tab_res, tab_leak, tab_ablation = st.tabs(
+        ["Horizon Accuracy", "Feature Importance", "Residual Analysis", "Leakage Tests", "RTLO Ablation"]
     )
+
+    # ------------------------------------------------------------------
+    # Tab 0: Forecast accuracy by horizon (direct multi-horizon win)
+    # ------------------------------------------------------------------
+    with tab_horizon:
+        hm = load_horizon_mae()
+        if not hm:
+            st.info("Horizon metrics unavailable. Retrain to generate `horizon_mae.json`.")
+        else:
+            st.markdown(
+                "**Beacon uses a separate model per forecast horizon (h=1…24)**, each predicting "
+                "its step *directly* from the latest window **plus the forecasted weather and "
+                "calendar at the target hour** — instead of recursively reusing the 1-hour model. "
+                "This keeps day-ahead error low where a naive single model blows up. Measured on "
+                "held-out data with real weather. Lower is better."
+            )
+            direct = hm["direct_mae"]
+            single = hm["single_model_mae"]
+            st.plotly_chart(horizon_accuracy_chart(hm), use_container_width=True)
+
+            improvement = (np.mean(single) - np.mean(direct)) / np.mean(single) * 100
+            c1, c2, c3 = st.columns(3)
+            c1.metric("MAE @ h=1", f"{direct[0]:.0f} MW")
+            c2.metric("MAE @ h=24", f"{direct[-1]:.0f} MW", help="vs single-model rolled out")
+            c3.metric("Avg improvement vs single", f"{improvement:.0f}%")
 
     # ------------------------------------------------------------------
     # Tab 1: Feature importance

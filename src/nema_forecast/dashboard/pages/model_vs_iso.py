@@ -27,9 +27,10 @@ COMPARISON_DAYS = 30
 def render() -> None:
     st.title("Beacon vs ISO-NE Forecast")
     st.markdown(
-        f"Live, side-by-side evaluation of the **Beacon** model against ISO New England's "
-        f"day-ahead demand forecast for NEMA, over the last **{COMPARISON_DAYS} days** of "
-        "available data."
+        f"Horizon-matched, side-by-side evaluation: **Beacon's day-ahead (24 h) forecast** "
+        f"against ISO New England's day-ahead demand forecast for NEMA, over the last "
+        f"**{COMPARISON_DAYS} days**. Both forecast the same hours 24 h ahead and use the same "
+        "Open-Meteo weather forecast — an apples-to-apples comparison."
     )
 
     with st.spinner("Building live comparison from ISO-NE data …"):

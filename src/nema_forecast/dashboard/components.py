@@ -72,6 +72,16 @@ def load_feature_importance() -> dict:
     return data
 
 
+@st.cache_data(ttl=300)
+def load_horizon_mae() -> dict:
+    """Per-horizon MAE: direct multi-horizon models vs the single-model baseline."""
+    path = MODELS_DIR / "horizon_mae.json"
+    if not path.exists():
+        return {}
+    data: dict = json.loads(path.read_text())
+    return data
+
+
 # ---------------------------------------------------------------------------
 # Chart builders
 # ---------------------------------------------------------------------------
@@ -183,6 +193,39 @@ def dual_bar_chart(
         template="plotly_white",
         legend={"orientation": "h", "y": 1.12},
         yaxis_title="MAE (MW)",
+        height=400,
+        margin={"t": 50, "b": 40, "l": 60, "r": 20},
+    )
+    return fig
+
+
+def horizon_accuracy_chart(hm: dict) -> go.Figure:
+    """Per-horizon MAE: direct per-horizon Beacon vs the naive single-model baseline."""
+    h, direct, single = hm["horizon"], hm["direct_mae"], hm["single_model_mae"]
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=h,
+            y=single,
+            mode="lines+markers",
+            name="Old single model (rolled out)",
+            line={"color": GREY, "dash": "dash"},
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=h,
+            y=direct,
+            mode="lines+markers",
+            name="Beacon (per-horizon + weather)",
+            line={"color": GREEN, "width": 3},
+        )
+    )
+    fig.update_layout(
+        xaxis_title="Forecast horizon (hours ahead)",
+        yaxis_title="MAE (MW)",
+        template="plotly_white",
+        legend={"orientation": "h", "y": 1.12},
         height=400,
         margin={"t": 50, "b": 40, "l": 60, "r": 20},
     )

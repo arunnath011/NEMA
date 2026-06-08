@@ -1,9 +1,9 @@
 {
-  "temp": 53.42000000000006,
-  "humidity": 71.0,
-  "wind_speed": 4.47,
+  "temp": 52.7,
+  "humidity": 74.0,
+  "wind_speed": 8.7,
   "visibility": 10000.0,
-  "dew_point": 44.01500000000002,
-  "clouds_all": 75.0,
-  "feels_like": 51.89000000000002
+  "dew_point": 44.4,
+  "clouds_all": 77.0,
+  "feels_like": 47.4
 }

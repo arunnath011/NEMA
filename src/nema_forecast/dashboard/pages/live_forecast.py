@@ -171,7 +171,7 @@ def render() -> None:
     # ------------------------------------------------------------------
     # Last 7 days — actual vs Beacon hindcast
     # ------------------------------------------------------------------
-    st.subheader("Last 7 Days — Actual vs Beacon Forecast")
+    st.subheader("Last 7 Days — Actual vs Beacon (1-hour-ahead)")
     last_week = recent_load.tail(168).copy()
     last_week = last_week.rename(columns={"RTLO": "actual"})
 
@@ -194,7 +194,7 @@ def render() -> None:
                 x=hw["datetime"],
                 y=hw["forecast_mw"],
                 mode="lines",
-                name="Beacon Forecast",
+                name="Beacon (1h-ahead)",
                 line={"color": GREEN, "width": 2, "dash": "dash"},
             )
         )
@@ -221,7 +221,12 @@ def render() -> None:
             hw = hind.tail(168)
             err = (hw["forecast_mw"] - hw["actual"]).abs()
             mape = (err / hw["actual"].abs()).mean() * 100
-            st.metric("Beacon MAE", f"{err.mean():,.0f} MW", help=f"MAPE {mape:.1f}%")
+            st.metric(
+                "Beacon MAE (1h-ahead)",
+                f"{err.mean():,.0f} MW",
+                help=f"1-hour-ahead hindcast · MAPE {mape:.1f}%. Day-ahead accuracy is on the "
+                "Model vs ISO-NE and Diagnostics pages.",
+            )
         else:
             st.metric("Std Dev", f"{rtlo.std():,.0f} MW")
 
@@ -305,19 +310,20 @@ def _hindcast_cached(recent_load: pd.DataFrame) -> pd.DataFrame:
     if not (MODELS_DIR / "catboost_model.cbm").exists():
         return empty
     try:
+        from nema_forecast.dashboard.live_data import get_model_weather
         from nema_forecast.model.inference import load_model, predict_hindcast
 
-        return predict_hindcast(recent_load, model=load_model(), max_hours=168)
+        return predict_hindcast(recent_load, get_model_weather(), model=load_model(), max_hours=168)
     except Exception as exc:
         logger.error("Hindcast failed: %s", exc, exc_info=True)
         return empty
 
 
 def _run_live_inference(recent_load: pd.DataFrame, weather: dict) -> pd.DataFrame | None:
-    """Run the recursive 24 h forecast on the latest real-time demand window.
+    """Run the direct multi-horizon 24 h forecast on the latest real-time demand window.
 
-    Weather over the forecast horizon comes from the OpenWeatherMap 5-day forecast; the
-    *weather* dict (current observation) is unused here but kept for signature stability.
+    Weather over the forecast horizon comes from Open-Meteo (the same source the model trains
+    on); the *weather* dict (current observation) is unused here but kept for signature stability.
     """
     from nema_forecast.model.inference import load_model, predict_next_24h
 
@@ -332,12 +338,12 @@ def _run_live_inference(recent_load: pd.DataFrame, weather: dict) -> pd.DataFram
     try:
         model = load_model(model_path)
 
-        # Forecast weather covers the horizon hours; fall back to an empty frame so
-        # imputation fills weather from training medians if the API is unavailable.
+        # Open-Meteo recent + forecast weather covers the horizon hours; fall back to an empty
+        # frame so imputation fills from training medians if the API is unavailable.
         try:
-            from nema_forecast.data.weather import fetch_weather_forecast
+            from nema_forecast.dashboard.live_data import get_model_weather
 
-            recent_weather = fetch_weather_forecast()
+            recent_weather = get_model_weather()
         except Exception:
             recent_weather = pd.DataFrame()
 
