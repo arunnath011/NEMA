@@ -17,10 +17,9 @@ $[t-L,\, t-1]$. From each engineered channel we extract values at lags
 $\{1, 4, 8, 24, 48, 168\}$ hours and rolling means over windows of $\{24, 168\}$
 hours, capturing recent dynamics together with daily and weekly periodicity. The
 raw load channel (RTLO) is restricted to a whitelist retained from a notebook
-ablation,
-$\{\texttt{RTLO\_lag4},\ \texttt{RTLO\_mean24},\ \texttt{RTLO\_lag48},\
-\texttt{RTLO\_lag168},\ \texttt{RTLO\_mean168}\}$,
-which avoids redundant near-term load lags while preserving the daily and weekly
+ablation --- \texttt{RTLO\_lag4}, \texttt{RTLO\_mean24}, \texttt{RTLO\_lag48},
+\texttt{RTLO\_lag168}, and \texttt{RTLO\_mean168} --- which avoids redundant
+near-term load lags while preserving the daily and weekly
 load signal. The full window feature map, denoted $\phi_{\mathrm{lag}}(\cdot)$,
 produces 173 features.
 

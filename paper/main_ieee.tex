@@ -1,0 +1,55 @@
+\documentclass[conference]{IEEEtran}
+
+% ---------------------------------------------------------------------------
+% IEEE two-column conference version. Reuses the same section fragments as
+% main.tex. Build: tectonic main_ieee.tex   (or Overleaf with IEEEtran)
+% ---------------------------------------------------------------------------
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{figures/}}
+
+\title{Beacon: Direct Multi-Horizon Gradient Boosting with\\
+Target-Hour Weather Forecasts for Day-Ahead Zonal\\
+Load Forecasting in ISO New England}
+
+\author{\IEEEauthorblockN{Arun Surendranath}
+\IEEEauthorblockA{Independent Researcher\\
+\href{https://github.com/arunnath011/NEMA}{github.com/arunnath011/NEMA}}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\input{sections/00_abstract}
+\end{abstract}
+
+\begin{IEEEkeywords}
+short-term load forecasting, day-ahead forecasting, multi-horizon forecasting,
+gradient boosting, CatBoost, weather-informed forecasting, ISO New England
+\end{IEEEkeywords}
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_data}
+\input{sections/04_methodology}
+\input{sections/05_experimental_setup}
+\input{sections/06_results}
+\input{sections/07_discussion}
+\input{sections/08_limitations}
+\input{sections/09_conclusion}
+
+\section*{Reproducibility}
+All code, trained models, and metric artefacts are available at
+\href{https://github.com/arunnath011/NEMA}{github.com/arunnath011/NEMA}. Weather is
+sourced from the keyless Open-Meteo API; live load and the day-ahead benchmark from
+the ISO New England Web Services API.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

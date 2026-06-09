@@ -110,13 +110,14 @@ drops the day-ahead MAE to $76.7$\,MW and, notably, improves $h=1$ to $60.9$\,MW
 \caption{Cumulative ablation of target-hour features and weather source
 (test-set MAE, MW).}
 \label{tab:ablation}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lcc}
 \toprule
-Configuration & MAE @ $h=1$ & MAE @ $h=24$ \\
+Configuration & MAE$_{h1}$ & MAE$_{h24}$ \\
 \midrule
-Lags only, OWM weather & $78.7$ & $183.0$ \\
-\;+ target-hour features, OWM & $77.7$ & $110.3$ \\
-\;+ Open-Meteo (matched) --- \textbf{final} & $\mathbf{60.9}$ & $\mathbf{76.7}$ \\
+Lags only (OWM) & $78.7$ & $183.0$ \\
+\;+ target weather (OWM) & $77.7$ & $110.3$ \\
+\;+ Open-Meteo (\textbf{final}) & $\mathbf{60.9}$ & $\mathbf{76.7}$ \\
 \bottomrule
 \end{tabular}
 \end{table}

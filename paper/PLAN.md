@@ -74,11 +74,19 @@ operational day-ahead forecast for the NEMA zone, once the comparison is made ho
 
 ## 6. Build instructions
 
+Two compiled variants are committed in `paper/`:
+- `main.pdf` — single-column preprint (arXiv-style), from `main.tex`.
+- `main_ieee.pdf` — IEEE two-column conference, from `main_ieee.tex` (IEEEtran).
+Both share the same `sections/*.tex`, `references.bib`, and `figures/`.
+
 ```bash
 # figures (already generated; re-run if metrics change)
 python paper/make_figures.py
-# compile (Overleaf, or locally with a TeX distribution)
-cd paper && pdflatex main.tex && bibtex main && pdflatex main.tex && pdflatex main.tex
+# compile — easiest is Tectonic (self-contained, auto-fetches packages, no sudo):
+#   brew install tectonic
+cd paper && tectonic main.tex && tectonic main_ieee.tex
+# or with a full TeX distribution / Overleaf:
+#   pdflatex main && bibtex main && pdflatex main && pdflatex main
 ```
 
 ## 7. Integrity rules for all writers

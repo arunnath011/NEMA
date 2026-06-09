@@ -8,4 +8,4 @@
 *.fls
 *.fdb_latexmk
 *.synctex.gz
-main.pdf
+# compiled PDFs are committed (main.pdf, main_ieee.pdf) — do not ignore them
