@@ -1,0 +1,58 @@
+\section{Related Work}\label{sec:related}
+
+\paragraph{Statistical methods.} Classical short-term load forecasting has long
+relied on linear time-series models. Autoregressive integrated moving-average
+(ARIMA) models and exponential-smoothing (ETS) methods remain standard baselines
+for seasonal demand series \cite{box2015time,hyndman2018forecasting}. These
+methods are interpretable and data-efficient, but they capture exogenous drivers
+such as weather only through limited regression terms and struggle with the
+strongly nonlinear, multi-seasonal structure of hourly electricity load.
+
+\paragraph{Gradient-boosted trees.} Tree-based gradient boosting has become a
+dominant approach for tabular forecasting, combining strong accuracy with modest
+tuning effort. XGBoost \cite{chen2016xgboost} and LightGBM \cite{ke2017lightgbm}
+popularized scalable boosting, while CatBoost \cite{prokhorenkova2018catboost}
+adds ordered boosting and native categorical handling that suit the calendar-
+and weather-derived features common in load forecasting. Such models naturally
+ingest engineered lag, calendar, and degree-day features and handle nonlinear
+interactions without bespoke architectures, which motivates our choice of
+CatBoost as the per-horizon learner.
+
+\paragraph{Deep learning.} Neural sequence models offer an alternative for
+temporal demand. Long short-term memory networks \cite{hochreiter1997lstm}
+capture long-range dependencies, and transformer-based forecasters extend this
+to long sequences: the Informer \cite{zhou2021informer} reduces the quadratic
+cost of attention for long-horizon prediction, and the Temporal Fusion
+Transformer \cite{lim2021temporal} integrates static and time-varying exogenous
+covariates with interpretable attention. These models can be powerful but are
+data-hungry and comparatively costly to train, deploy, and reproduce in an
+operational, single-zone setting.
+
+\paragraph{Multi-horizon strategies.} Producing a full 24-hour profile requires
+a strategy for mapping inputs to multiple lead times. The principal options are
+\emph{recursive} roll-out, which feeds predictions back as inputs and thereby
+compounds errors and propagates bias, and \emph{direct} forecasting, which
+trains a separate model per horizon \cite{taieb2016bias}. The recursive--direct
+trade-off has been studied extensively, with direct strategies favored when bias
+accumulation dominates. We adopt the direct strategy and, as shown later,
+observe that a single-model roll-out degrades catastrophically at mid-horizons
+because a short-lead predictor is forced onto the opposite phase of the diurnal
+cycle.
+
+\paragraph{Weather-informed and probabilistic load forecasting.} Weather is the
+dominant exogenous driver of load, and the broader literature on probabilistic
+and weather-informed electric load forecasting establishes both the centrality
+of temperature-derived features and the value of honest, well-specified
+evaluation \cite{hong2016probabilistic}. Degree-day and thermal-stress
+transforms are standard levers for encoding the nonlinear load--temperature
+response.
+
+\paragraph{Gap.} Across these strands, two practical issues remain
+under-addressed. First, model-versus-operator comparisons are frequently made at
+mismatched horizons, overstating gains. Second, the gap between a model's
+back-tested accuracy and its deployed accuracy---driven here by a train/serve
+weather-source mismatch---is rarely measured or reported. This work fills that
+gap by combining a direct multi-horizon CatBoost forecaster with target-hour
+forecast-weather features, unifying the train and serve weather source, and
+evaluating against an operational ISO forecast on a strictly horizon-matched
+basis with an explicit leakage audit.

@@ -1,0 +1,28 @@
+\section{Conclusion}\label{sec:conclusion}
+
+This paper presented Beacon, a direct multi-horizon gradient-boosting forecaster for
+day-ahead hourly load in the NEMA zone of ISO New England. Rather than rolling a
+single near-term model forward, Beacon trains $24$ independent CatBoost models, one per
+horizon, each reading a $168$-hour lookback window together with the calendar and
+\emph{forecasted weather at its own target hour}. This design removes recursive error
+compounding and makes tomorrow's forecasted temperature --- the dominant driver of
+day-ahead load --- directly available to every horizon model.
+
+The contributions are fourfold: a direct per-horizon design that lowers average MAE by
+$80.6\%$ relative to a single-model roll-out; target-hour exogenous features as the
+lever that cuts day-ahead MAE from $183$ to $77$~MW; identification and correction of a
+train/serve weather-source mismatch that had nearly doubled live error; and a
+horizon-matched, leakage-audited evaluation protocol against an operational ISO
+forecast. On a full year of held-out 2025 data, Beacon attains a day-ahead (h=24) MAE
+of $76.7$~MW. In a live, horizon-matched comparison over a $30$-day window, it reaches
+a day-ahead MAE of $89.3$~MW against ISO-NE's $92.6$~MW, slightly beating the
+operational forecast on MAE and MAPE while remaining marginally behind on $R^2$. A
+shuffled-target test confirms the models exploit genuine feature--target structure
+rather than leakage.
+
+That a keyless, fully reproducible pipeline built on free public data can match and
+modestly beat a professional operational forecast --- once the comparison is made
+honestly --- suggests that careful feature construction, source discipline, and honest
+evaluation matter as much as model complexity. We hope the methodological lessons,
+particularly the two pitfalls this work highlights, prove useful to practitioners
+deploying weather-informed load forecasters.

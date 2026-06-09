@@ -1,0 +1,76 @@
+\section{Data}\label{sec:data}
+
+This study targets the Northeast Massachusetts / Boston (NEMA) load zone of
+ISO New England (ISO-NE), identified as load zone \texttt{.Z.NEMASSBOST} and
+ISO-NE location id 4008. Three data sources are combined: historical and live
+zonal load, weather observations and forecasts, and an operational day-ahead
+demand benchmark.
+
+\subsection{Load data}
+
+The training target is the ISO-NE hourly wholesale-load series (RTLO) for NEMA,
+covering 2017-03-01 through 2025-11-30, comprising 76{,}719 hourly observations
+after cleaning. For live serving, load is drawn from the ISO-NE Web Services API
+endpoint \texttt{realtimehourlydemand} (location 4008), which publishes with a
+settlement lag of approximately four days; hourly demand from the U.S. Energy
+Information Administration (EIA) is used as a fallback when ISO-NE data are
+unavailable~\cite{eia930}. The two series differ slightly, as the
+wholesale-load (WHLSECOST) history and the real-time demand series are not
+identical products.
+
+\subsection{Weather data}
+
+Weather is obtained from Open-Meteo~\cite{openmeteo} for the Boston Logan station
+(42.3656$^{\circ}$\,N, $-71.0096^{\circ}$\,W). The variables used are
+temperature, relative humidity, wind speed, dew point, cloud cover, apparent
+temperature, and visibility (in $^{\circ}$F, mph, and \%). Critically, a single
+provider supplies both training history and live serving: the Open-Meteo archive
+API (backed by ERA5 reanalysis) furnishes the historical record, while the
+Open-Meteo forecast API supplies weather at serving time. Neither requires an API
+key. This deliberate train/serve source unification removes a distribution
+mismatch that otherwise degrades deployed day-ahead accuracy. The Open-Meteo
+archive omits visibility, which is filled with a constant.
+
+\subsection{Benchmark}
+
+As an operational baseline we use ISO-NE's official day-ahead demand forecast for
+NEMA, retrieved from the ISO-NE Web Services \texttt{dayaheadhourlydemand}
+endpoint (location 4008)~\cite{isone}. This is the forecast that ISO-NE operators
+rely on for unit commitment and reserve planning, and constitutes a meaningful,
+hard bar for any candidate model.
+
+\subsection{Temporal split, cleaning, and imputation}
+
+To prevent any leakage of future information into model fitting, the data are
+divided by a strict temporal split at \texttt{TRAIN\_CUTOFF}
+$=$ 2024-12-31 23:00. All observations at or before the cutoff form the training
+partition (68{,}704 rows) and all later observations form the held-out test
+partition (8{,}015 rows). Because the model consumes fixed-length lookback
+windows (Section~\ref{sec:method}), sequence construction yields 58{,}236
+training, 10{,}276 validation, and 7{,}823 test windows, where the validation
+set is the most recent 15\% of the training partition. Table~\ref{tab:data}
+summarizes the partition sizes.
+
+Cleaning and imputation are performed using statistics estimated on the training
+partition only: missing values are filled with train-only medians, so that no
+test-period information influences the imputation of any feature. Combined with
+the temporal split, this ensures that every fitting decision depends solely on
+information available at or before the cutoff.
+
+\begin{table}[t]
+\centering
+\caption{NEMA load data partitions under the strict temporal split at
+2024-12-31 23:00.}
+\label{tab:data}
+\begin{tabular}{lrr}
+\toprule
+Partition & Rows & Windows \\
+\midrule
+Train      & 68{,}704 & 58{,}236 \\
+Validation & --       & 10{,}276 \\
+Test       & 8{,}015  & 7{,}823 \\
+\midrule
+Total      & 76{,}719 & --       \\
+\bottomrule
+\end{tabular}
+\end{table}

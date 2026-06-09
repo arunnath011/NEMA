@@ -1,0 +1,19 @@
+Day-ahead electricity load forecasting underpins unit commitment, economic
+dispatch, and reserve sizing in wholesale power markets, where small accuracy
+gains yield large cost and reliability benefits. We study 24-hour-ahead hourly
+load forecasting for the NEMA (Northeast Massachusetts/Boston) zone of ISO New
+England and present \emph{Beacon}, a direct multi-horizon gradient-boosting
+forecaster comprising 24 CatBoost models---one per horizon $h=1,\dots,24$---each
+predicting its step directly from a 168-hour lookback window, thereby avoiding
+recursive error compounding. Each horizon model is conditioned on
+\emph{target-hour} exogenous features: the exactly-known calendar and the
+\emph{forecasted} weather at the target hour $t{+}h$, the dominant driver of
+day-ahead load. We further unify the training and serving weather source on
+Open-Meteo (ERA5 archive for history, forecast API for deployment), removing a
+train/serve distribution mismatch that otherwise nearly doubled day-ahead error.
+On a strictly held-out 2025 test set, Beacon attains a day-ahead ($h{=}24$) MAE
+of 76.7~MW and an $h{=}1$ $R^2$ of 0.977. In a horizon-matched live evaluation
+over 30 days, Beacon achieves a day-ahead MAE of 89.3~MW, slightly improving on
+ISO New England's operational day-ahead forecast (92.6~MW). A shuffled-target
+audit confirms the model exploits genuine feature--target structure rather than
+leakage. The pipeline is keyless and fully reproducible.

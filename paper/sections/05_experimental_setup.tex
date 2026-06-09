@@ -1,0 +1,65 @@
+\section{Experimental Setup}\label{sec:setup}
+
+\subsection{Temporal split and validation}
+All evaluation respects the arrow of time. We impose a strict temporal split at
+\texttt{TRAIN\_CUTOFF}~$=$~2024-12-31 23:00: every observation on or before the
+cutoff is available for training, and the entire held-out test set lies in 2025.
+At the raw-row level this yields $68{,}704$ training rows and $8{,}015$ test rows.
+After constructing the $168$-hour lookback windows required by the model, the data
+comprise $58{,}236$ training, $10{,}276$ validation, and $7{,}823$ test windows. The
+validation set is the most recent $15\%$ of the training period and is used solely
+for CatBoost early stopping (a $50$-round patience). No test-set information is used
+at any point in feature construction, model selection, or hyper-parameter choice,
+so the test set is a clean out-of-sample probe of generalisation to a future year.
+
+\subsection{Metrics}
+We report three standard regression metrics. Let $y_i$ denote the actual load,
+$\hat{y}_i$ the forecast, $\bar{y}$ the mean of the actuals, and $N$ the number of
+evaluated points. The mean absolute error (MAE, in MW),
+\begin{equation}
+\mathrm{MAE} = \frac{1}{N}\sum_{i=1}^{N}\bigl|\,y_i-\hat{y}_i\,\bigr|,
+\end{equation}
+is our primary metric because it shares the units of load and matches the model's
+training loss. The mean absolute percentage error (MAPE, in \%),
+\begin{equation}
+\mathrm{MAPE} = \frac{100}{N}\sum_{i=1}^{N}\left|\frac{y_i-\hat{y}_i}{y_i}\right|,
+\end{equation}
+gives a scale-free view, and the coefficient of determination,
+\begin{equation}
+R^{2} = 1 - \frac{\sum_{i=1}^{N}\bigl(y_i-\hat{y}_i\bigr)^{2}}
+                  {\sum_{i=1}^{N}\bigl(y_i-\bar{y}\bigr)^{2}},
+\end{equation}
+measures the fraction of load variance explained. On the held-out test set, metrics
+are reported per horizon $h \in \{1,\dots,24\}$ and averaged across horizons.
+
+\subsection{Baselines}
+We compare Beacon against four references. (i) \emph{Persistence} carries the last
+observed load forward. (ii) \emph{Seasonal-na\"ive} (168\,h) predicts the load
+exactly one week earlier, exploiting the strong weekly periodicity of demand.
+(iii) The \emph{single-model rolled-out} baseline trains a single $h=1$ model and
+reuses its prediction for every horizon; this isolates the value of the direct
+multi-horizon design and is the principal ablation contrast in
+Section~\ref{sec:results}. (iv) The \emph{ISO-NE operational day-ahead forecast},
+ISO New England's own published demand forecast for the NEMA reliability region
+(location 4008), is the hardest and most operationally meaningful bar.
+
+\subsection{Live, horizon-matched protocol}
+A persistent pitfall in model-versus-operator comparisons is horizon mismatch:
+contrasting a model's $1$-hour nowcast against a day-ahead operational benchmark.
+We avoid this with a strictly horizon-matched live protocol. Over the most recent
+$\sim$30-day window ($720$ hourly points), both forecasters are evaluated at the
+\emph{same} $24$-hour-ahead horizon, both are driven by the \emph{same} Open-Meteo
+weather, and both are scored against the same ground truth: ISO-NE
+\texttt{realtimehourlydemand} actuals for location 4008. This like-for-like setup
+is the basis for the live results in Table~\ref{tab:iso}. Because the live window
+is short and falls in spring/early-summer, it complements rather than replaces the
+larger held-out 2025 test set.
+
+\subsection{Reproducibility}
+All results are reproducible from the public repository
+(\texttt{github.com/arunnath011/NEMA}). Running
+\texttt{python -m nema\_forecast.model.train} regenerates the $24$ per-horizon
+models and all metric artefacts (\texttt{model\_performance.json},
+\texttt{horizon\_mae.json}); the data pipeline is keyless, drawing on ISO-NE Web
+Services and Open-Meteo. The CatBoost configuration (1000 iterations, depth 8,
+learning rate 0.05, MAE loss, seed 42) is fixed for every horizon model.

@@ -1,0 +1,33 @@
+\section{Limitations and Future Work}\label{sec:limits}
+
+Several limitations bound the scope of these results. First, the study covers a
+\emph{single} reliability zone, NEMA (Northeast Massachusetts / Boston); whether the
+same feature design and source-matching discipline transfer to other ISO-NE zones, or
+to other markets with different load shapes and weather regimes, remains to be shown.
+Second, the live horizon-matched evaluation against ISO-NE spans only about $30$ days
+of spring and early summer. This window is short and seasonally narrow: it excludes
+peak-summer cooling load and winter heating extremes, the periods where day-ahead
+forecasting is most consequential and most difficult. The test-set results
+(Section~\ref{sec:results}) draw on a full year of held-out 2025 data and are
+correspondingly more robust, but the head-to-head with the operator should be read as
+indicative rather than conclusive.
+
+Third, the load series differ slightly between the training source (wholesale-load,
+WHLSECOST) and the real-time-demand series used as live actuals; small definitional
+differences between these series add noise to the live comparison. Fourth, the
+Open-Meteo ERA5 archive does not provide a visibility channel, which was filled with a
+constant during training; visibility is therefore inert as a feature. Finally, Beacon
+produces \emph{point} forecasts only --- it emits no predictive intervals or quantile
+bands, which limits its usefulness for reserve sizing and risk-aware dispatch, where
+uncertainty quantification is valuable.
+
+These limitations map onto a clear program of future work. The most immediate
+extension is \emph{probabilistic} forecasting: quantile or interval bands around each
+per-horizon prediction, so that the forecaster communicates uncertainty rather than a
+single number. Beyond point accuracy, ensembling the gradient-boosted models with a
+transformer-style sequence model such as Informer~\cite{zhou2021informer} may capture
+longer-range temporal structure that the lag features miss. Broader evaluation ---
+extending across all ISO-NE zones and across a full seasonal cycle --- would test
+generalization directly. Systematic hyper-parameter search via Optuna, and
+recency-weighted retraining that adapts to gradual changes in load behavior, are
+natural refinements to the training procedure that we leave to future work.

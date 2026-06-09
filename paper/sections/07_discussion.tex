@@ -1,0 +1,56 @@
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Target-hour weather is the day-ahead lever}
+The results in Section~\ref{sec:results} make clear that the dominant lever for
+day-ahead accuracy is not the recent load history but the \emph{forecasted weather
+at the target hour}. Twenty-four hours out, the most recent observed load carries
+comparatively little information about tomorrow's load: the diurnal and weather-driven
+structure of the day to come is what matters, and that structure is captured by
+calendar features (exactly known in advance) and by the forecast temperature at
+$t+h$. Because each per-horizon model is trained to read the exogenous features at its
+own target hour rather than rolling a near-term prediction forward, it stays accurate
+deep into the horizon. The ablation in Table~\ref{tab:ablation} quantifies this:
+adding target-hour calendar and weather features cuts day-ahead (h=24) MAE from
+$183.0$ to $110.3$~MW, and unifying the weather source pushes it further to
+$76.7$~MW. The bulk of the day-ahead error that a lags-only model exhibits is, in
+effect, an absence of knowledge about tomorrow's weather, not an absence of recent
+load.
+
+\subsection{Train/serve weather-source matching}
+A second, more subtle lesson concerns deployment. A model can be internally
+consistent and well-validated on held-out data yet still degrade in production if the
+distribution of an input shifts silently between training and serving. Here the
+culprit was the weather source: training on OpenWeatherMap history while serving
+Open-Meteo forecasts induced a distribution mismatch that nearly doubled live
+day-ahead error, from roughly $90$ to $147$~MW (Section~\ref{sec:results}). Retraining
+on the same Open-Meteo source used at serving time removed most of the gap to the
+operator. No change to the model architecture, features, or hyper-parameters was
+involved; the single act of \emph{matching the train and serve weather source} was
+responsible. For weather-informed forecasters this is an easy mistake to make and a
+costly one, and it argues for treating the exogenous-data provider as a versioned,
+unified part of the pipeline rather than an interchangeable commodity.
+
+\subsection{The horizon-mismatch pitfall}
+The comparison against ISO-NE also illustrates a methodological pitfall that can
+inflate reported gains. It is tempting to compare a model's short-horizon nowcast
+against an operator's day-ahead forecast, but this is not an apples-to-apples
+contrast: the two forecasts solve different problems at different lead times. When the
+comparison is made honestly --- both forecasters evaluated at the same 24-hour-ahead
+horizon, on the same Open-Meteo weather --- Beacon's edge over the ISO-NE operational
+forecast is a modest but real improvement of $-3.3$~MW MAE ($\approx +3.5\%$), with a
+corresponding MAPE improvement and a marginally lower $R^2$ (Table~\ref{tab:live}).
+This is a genuine result, not the inflated figure a horizon mismatch would produce,
+and reporting it as such is part of the contribution.
+
+\subsection{Operational implications}
+Taken together, these findings carry a practical message. ISO-NE's day-ahead demand
+forecast is an operational product that grid operators rely on for unit commitment,
+economic dispatch, and reserve sizing, and matching --- let alone slightly beating ---
+it is a hard bar. That a keyless, fully reproducible pipeline built entirely on free
+public data sources (ISO-NE Web Services and Open-Meteo) can clear that bar at
+day-ahead horizon, while remaining auditable and leakage-clean
+(Section~\ref{sec:results}), suggests that the gains here come from disciplined feature
+construction and honest evaluation rather than from proprietary data or heavy modeling
+machinery. Small MAE reductions translate into meaningful cost and reliability gains in
+wholesale electricity markets, and a transparent pipeline that achieves them lowers the
+barrier to adoption and independent verification.

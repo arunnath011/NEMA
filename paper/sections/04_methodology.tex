@@ -1,0 +1,116 @@
+\section{Methodology}\label{sec:method}
+
+\subsection{Notation and problem setup}
+
+Let $y_t$ denote the NEMA hourly load at time $t$. Forecasting is performed from a
+fixed-length lookback window of $L = 168$ hours, i.e. the one-week interval
+$[t-L,\, t-1]$. For each forecast origin $t$ and each horizon
+$h \in \{1, \dots, 24\}$, the task is to predict the load $y_{t+h}$ at the target
+hour $t+h$. We adopt a \emph{direct} multi-horizon strategy: a separate model is
+trained for each horizon $h$, mapping a feature vector to a single scalar target
+$y_{t+h}$, with no recursive feedback of intermediate predictions.
+
+\subsection{Window lag features}
+
+The first feature block summarizes the lookback window
+$[t-L,\, t-1]$. From each engineered channel we extract values at lags
+$\{1, 4, 8, 24, 48, 168\}$ hours and rolling means over windows of $\{24, 168\}$
+hours, capturing recent dynamics together with daily and weekly periodicity. The
+raw load channel (RTLO) is restricted to a whitelist retained from a notebook
+ablation,
+$\{\texttt{RTLO\_lag4},\ \texttt{RTLO\_mean24},\ \texttt{RTLO\_lag48},\
+\texttt{RTLO\_lag168},\ \texttt{RTLO\_mean168}\}$,
+which avoids redundant near-term load lags while preserving the daily and weekly
+load signal. The full window feature map, denoted $\phi_{\mathrm{lag}}(\cdot)$,
+produces 173 features.
+
+\subsection{Calendar features}
+
+Calendar effects are encoded with cyclic (sine/cosine) transforms of the hour of
+day, day of week, and month, together with binary indicators \texttt{is\_weekend}
+and \texttt{is\_us\_holiday}. The cyclic encoding avoids artificial discontinuities
+at period boundaries (e.g. hour 23 to hour 0) and lets tree splits exploit smooth
+diurnal, weekly, and seasonal structure.
+
+\subsection{Weather-derived features}
+
+Temperature drives electricity demand non-linearly through both heating and
+cooling load. We compute heating and cooling degree days relative to a 65$^{\circ}$F
+base,
+\begin{equation}
+\mathrm{HDD} = \max(0,\ 65 - T), \qquad
+\mathrm{CDD} = \max(0,\ T - 65),
+\end{equation}
+together with the squared terms $T^2$, $\mathrm{HDD}^2$, and $\mathrm{CDD}^2$ to
+capture curvature, and sigmoidal thermal-stress transforms (logistic functions
+centred at 18$^{\circ}$C for heating and 22$^{\circ}$C for cooling) that model the
+saturating onset of heating and air-conditioning demand. These derived quantities
+are computed from the Open-Meteo weather variables described in
+Section~\ref{sec:data}.
+
+\subsection{Target-hour exogenous features}
+
+The central methodological idea is to provide each horizon model with information
+about the target hour $t+h$ itself, rather than only the history up to $t-1$. The
+target-hour exogenous block $\phi_{\mathrm{exog}}(t+h)$ comprises all engineered
+calendar features and all weather-derived features \emph{evaluated at the target
+hour} $t+h$ --- the exactly-known calendar attributes of $t+h$ and the
+\emph{forecasted} weather at $t+h$. The raw load channel RTLO is excluded from
+this block, since the load at $t+h$ is precisely the prediction target. This block
+contributes 21 features.
+
+\subsection{Augmented feature map}
+
+For each horizon $h$, the window features and the target-hour exogenous features
+are concatenated into a single augmented vector:
+\begin{equation}
+\mathbf{x}_h \;=\; \bigl[\, \phi_{\mathrm{lag}}\!\bigl([t-L,\, t-1]\bigr)
+\;;\; \phi_{\mathrm{exog}}(t+h) \,\bigr],
+\label{eq:augmented}
+\end{equation}
+yielding a $173 + 21 = 194$-dimensional representation. Each horizon model
+$f_h$ then predicts
+\begin{equation}
+\hat{y}_{t+h} \;=\; f_h(\mathbf{x}_h).
+\end{equation}
+The window block is shared in form across horizons, while the exogenous block
+$\phi_{\mathrm{exog}}(t+h)$ shifts to the appropriate target hour for each $h$.
+
+\subsection{Direct multi-horizon strategy}
+
+We instantiate 24 independent CatBoost models, $\{f_h\}_{h=1}^{24}$, one per
+horizon, each trained directly on its own target $y_{t+h}$. This contrasts with a
+recursive roll-out, in which a single one-step model is applied iteratively, its
+predictions fed back as inputs for subsequent steps. Recursive roll-out compounds
+errors across steps and suffers from a train/serve mismatch, because at training
+time the model conditions on true past values whereas at inference time it
+conditions on its own noisy forecasts~\cite{taieb2016bias}. The direct strategy
+trains each horizon under exactly the conditions it faces at deployment, removing
+both error compounding and that mismatch, at the cost of fitting 24 models. For
+ablation we also consider a single $h{=}1$ model whose prediction is reused for
+every horizon.
+
+\subsection{Learner and training configuration}
+
+Each $f_h$ is a CatBoost gradient-boosted tree ensemble~\cite{prokhorenkova2018catboost},
+chosen for strong tabular performance and native handling of the heterogeneous
+engineered features. All 24 models share the same configuration: 1000 boosting
+iterations, tree depth 8, learning rate 0.05, mean-absolute-error (MAE) loss,
+early stopping after 50 rounds without validation improvement, and random seed 42.
+The MAE objective aligns training directly with the primary evaluation metric and
+is robust to occasional load spikes. Early stopping uses the validation split
+defined in Section~\ref{sec:data}.
+
+\subsection{Why target-hour weather is causal, not leakage}
+
+A natural concern is whether conditioning on quantities at $t+h$ introduces
+target leakage. It does not. The target-hour weather in $\phi_{\mathrm{exog}}(t+h)$
+is a \emph{forecast}, which is exactly the quantity available to an operator at
+prediction time; in deployment it is supplied by the Open-Meteo forecast API, and
+in evaluation the corresponding archive value plays this role. The calendar
+attributes of $t+h$ are deterministic and known arbitrarily far in advance.
+Crucially, the load channel RTLO at $t+h$ --- the only quantity that would
+constitute leakage --- is explicitly excluded from the exogenous block, and every
+lag and rolling feature in $\phi_{\mathrm{lag}}$ references data at or before
+$t-1$. No feature can therefore carry target-time load information, a property we
+verify empirically with a shuffled-target audit in the results.

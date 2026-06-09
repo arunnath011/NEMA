@@ -1,0 +1,67 @@
+\section{Introduction}\label{sec:intro}
+
+Short-term electricity load forecasting is a foundational input to the operation
+of wholesale power markets. Independent system operators rely on accurate
+day-ahead demand forecasts to schedule generation through unit commitment, to
+clear economic dispatch, and to size operating reserves. Because these decisions
+trade off the cost of committed capacity against the risk of shortfall, even
+modest reductions in forecast error translate into appreciable savings and
+improved reliability across a control area. The day-ahead horizon is
+particularly consequential: commitment decisions for slow-starting units are
+made roughly a day in advance, so accuracy 24~hours out directly shapes the cost
+and security of the resulting schedule.
+
+We study this problem for the NEMA zone (Northeast Massachusetts/Boston) of ISO
+New England, identified as load zone \texttt{.Z.NEMASSBOST} (location id 4008).
+A natural and demanding reference point is the operator's own product: ISO New
+England publishes an operational day-ahead reliability-region demand forecast
+that market participants and operators rely upon \cite{isone}. Improving on this
+forecast is a meaningful and hard bar, precisely because it is the number the
+system already trusts. Our goal is therefore not merely to fit historical load
+well, but to match or exceed the operational benchmark on a like-for-like basis.
+
+In pursuing that goal we highlight and correct two methodological pitfalls that
+recur in applied load-forecasting work. The first is \emph{horizon mismatch}:
+comparing a model's short-lead nowcast (e.g.\ a 1-hour-ahead prediction) against
+an operator's day-ahead forecast, which flatters the model by pitting an easier
+task against a harder one. We instead evaluate both forecasters at the same
+24-hour-ahead horizon. The second is a \emph{train/serve weather-source
+mismatch}: training on weather from one provider while serving live predictions
+with weather from another silently degrades deployed accuracy, because the model
+learns the idiosyncrasies of the training source. We find this single mismatch
+nearly doubles live day-ahead error, and that unifying the source on Open-Meteo
+\cite{openmeteo} removes most of the gap to the operator.
+
+Methodologically, we adopt a \emph{direct multi-horizon} design. Rather than
+training one model and recursively rolling its predictions forward---which
+compounds errors and, for load, forces a single-phase predictor to serve the
+opposite phase of the diurnal cycle---we train 24 independent CatBoost
+\cite{prokhorenkova2018catboost} models, one per horizon $h=1,\dots,24$, each
+predicting directly from a 168-hour (one-week) lookback window. Crucially, each
+horizon model receives \emph{target-hour} exogenous features: the calendar
+encoding at $t{+}h$, which is known exactly, together with the forecasted
+weather at $t{+}h$, the dominant driver of load a day ahead.
+
+\paragraph{Contributions.} This paper makes the following contributions.
+\begin{itemize}
+  \item A direct per-horizon forecaster (\emph{Beacon}) of 24 CatBoost models
+        that removes recursive error compounding, achieving on average 80.6\%
+        lower MAE across the 24-hour horizon than a single-model roll-out.
+  \item Target-hour exogenous features (exact calendar plus forecast weather at
+        $t{+}h$) as the principal lever for day-ahead accuracy, cutting
+        held-out day-ahead MAE from 183 to 77~MW.
+  \item Identification and correction of a train/serve weather-source mismatch,
+        which reduces live day-ahead MAE from roughly 147 to 90~MW---a
+        deployment lesson rarely reported in the literature.
+  \item A horizon-matched evaluation protocol against ISO New England's
+        operational day-ahead forecast, paired with a rigorous leakage audit via
+        a shuffled-target test.
+  \item A fully reproducible, keyless, and deployable pipeline built on ISO-NE
+        Web Services and Open-Meteo.
+\end{itemize}
+
+On a strictly held-out 2025 test set Beacon attains a day-ahead MAE of 76.7~MW
+and an $h{=}1$ $R^2$ of 0.977, and in a horizon-matched 30-day live evaluation
+it reaches a day-ahead MAE of 89.3~MW against ISO New England's 92.6~MW. The
+remainder of the paper details the data (Section~\ref{sec:related} situates the
+work; subsequent sections cover data, method, setup, and results).
