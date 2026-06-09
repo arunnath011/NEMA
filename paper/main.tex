@@ -8,6 +8,8 @@
 % (or upload the paper/ folder to Overleaf)
 % ---------------------------------------------------------------------------
 
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
 \usepackage[margin=1in]{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -25,7 +27,8 @@
 Target-Hour Weather Forecasts for Day-Ahead Zonal Load\\
 Forecasting in ISO New England}}
 
-\author{Arun Surendranath\\
+\author{Arun Surendranath\\[2pt]
+\small Independent Researcher\\
 \small \href{https://github.com/arunnath011/NEMA}{github.com/arunnath011/NEMA}}
 
 \date{\today}
@@ -36,6 +39,12 @@ Forecasting in ISO New England}}
 \begin{abstract}
 \input{sections/00_abstract}
 \end{abstract}
+
+\smallskip
+\noindent\textbf{\small Keywords:}~{\small short-term load forecasting; day-ahead
+forecasting; multi-horizon forecasting; gradient boosting; CatBoost;
+weather-informed forecasting; ISO New England.}
+\medskip
 
 \input{sections/01_introduction}
 \input{sections/02_related_work}

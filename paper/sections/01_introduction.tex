@@ -62,6 +62,13 @@ weather at $t{+}h$, the dominant driver of load a day ahead.
 
 On a strictly held-out 2025 test set Beacon attains a day-ahead MAE of 76.7~MW
 and an $h{=}1$ $R^2$ of 0.977, and in a horizon-matched 30-day live evaluation
-it reaches a day-ahead MAE of 89.3~MW against ISO New England's 92.6~MW. The
-remainder of the paper details the data (Section~\ref{sec:related} situates the
-work; subsequent sections cover data, method, setup, and results).
+it reaches a day-ahead MAE of 89.3~MW against ISO New England's 92.6~MW.
+
+The remainder of the paper is organized as follows.
+Section~\ref{sec:related} situates the work within the load-forecasting
+literature. Section~\ref{sec:data} describes the load, weather, and benchmark
+data. Section~\ref{sec:method} details the feature construction and the direct
+multi-horizon model, and Section~\ref{sec:setup} specifies the evaluation
+protocol. Section~\ref{sec:results} reports the results, Section~\ref{sec:discussion}
+discusses the findings, and Sections~\ref{sec:limits} and~\ref{sec:conclusion}
+cover limitations and conclusions.
