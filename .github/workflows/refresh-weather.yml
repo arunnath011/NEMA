@@ -36,8 +36,8 @@ jobs:
 
       - name: Commit if changed
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Arun Surendranath"
+          git config user.email "53822804+arunnath011@users.noreply.github.com"
           if git diff --quiet -- data/weather_snapshot.parquet; then
             echo "No change in weather snapshot."
           else
