@@ -1,7 +1,7 @@
-"""Landing page — Forecast Comparison: Actual (real) vs Beacon vs ISO-NE, day-ahead.
+"""Landing page — NEMA day-ahead load forecasting with Beacon.
 
-The single clear message of the dashboard: how the model's day-ahead forecast tracks the
-real load, side by side with ISO New England's operational day-ahead forecast.
+Leads with Beacon's proven long-run (held-out full-year) accuracy, then shows the recent
+live forecast against the real demand and ISO New England's operational day-ahead forecast.
 """
 
 from __future__ import annotations
@@ -9,9 +9,14 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
-from nema_forecast.dashboard.components import BLUE, GREEN
+from nema_forecast.dashboard.components import (
+    BLUE,
+    GREEN,
+    horizon_accuracy_chart,
+    load_horizon_mae,
+    load_metrics,
+)
 from nema_forecast.dashboard.live_data import build_recent_comparison
-from nema_forecast.model.backtest import compute_metrics
 
 COMPARISON_DAYS = 30
 ISO_ORANGE = "#E67E22"
@@ -20,54 +25,88 @@ _WINDOWS = {"Last 7 days": 168, "Last 14 days": 336, "Last 30 days": 720}
 
 
 def render() -> None:
-    st.title("Real vs Beacon vs ISO-NE")
+    st.title("NEMA Day-Ahead Load Forecast")
     st.markdown(
-        "Day-ahead (24 h) load forecast for the **NEMA** zone: the model's forecast "
-        "(**Beacon**) and ISO New England's operational forecast, both against the "
-        "**real** metered demand. Horizon-matched, using the same Open-Meteo weather."
+        "**Beacon** forecasts electricity demand for the **NEMA (Northeast Massachusetts / "
+        "Boston)** zone a full day ahead. It uses a separate gradient-boosting model for each "
+        "of the next 24 hours, conditioned on a week of recent load and the **forecasted "
+        "weather** at the target hour — the dominant driver of tomorrow's demand. Below: how "
+        "accurate Beacon has been over a full held-out year, and how it is tracking right now "
+        "against the real demand and ISO New England's own day-ahead forecast."
+    )
+
+    _long_run_panel()
+    st.divider()
+    _recent_live_section()
+
+
+# ---------------------------------------------------------------------------
+# Long-run accuracy (held-out full year) — the headline evidence
+# ---------------------------------------------------------------------------
+
+
+def _long_run_panel() -> None:
+    metrics = load_metrics()
+    if not metrics:
+        return
+
+    st.subheader("Accuracy proven over a full held-out year")
+    n = metrics.get("test_samples", 0)
+    st.markdown(
+        f"Beacon was tested on a **strictly held-out year** — roughly {n:,} hours spanning "
+        "winter, spring, summer, and fall of 2025, none of it seen during training. Across "
+        f"that year its **day-ahead (24-hour) forecast** lands within **{metrics.get('MAE_h24', 0):.0f} MW** "
+        "of the real load on average — and error grows only "
+        f"**{metrics.get('horizon_degradation', 0):.2f}×** from one hour ahead to a full day "
+        f"ahead, versus a naive one-step model that it beats by **{metrics.get('avg_improvement_vs_single_pct', 0):.0f}%** "
+        "across the horizon. A short recent window (further down) reflects just one season and "
+        "is noisier; **this full-year result is the fuller measure of Beacon's accuracy.**"
+    )
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Day-ahead MAE (held-out year)", f"{metrics.get('MAE_h24', 0):.0f} MW")
+    c2.metric("Fit quality (R²)", f"{metrics.get('R2', 0):.3f}")
+    c3.metric("Better than naive baseline", f"{metrics.get('avg_improvement_vs_single_pct', 0):.0f}%")
+
+    hm = load_horizon_mae()
+    if hm:
+        st.plotly_chart(horizon_accuracy_chart(hm), use_container_width=True)
+        st.caption(
+            "Forecast error by how far ahead we predict, on the held-out year. Beacon stays "
+            "flat as the horizon grows (each hour has its own weather-aware model), where a "
+            "single one-step model rolled forward collapses at mid-day. Measured with observed "
+            "weather; the live day-ahead below additionally depends on the weather forecast."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Recent live — Real vs Beacon vs ISO-NE
+# ---------------------------------------------------------------------------
+
+
+def _recent_live_section() -> None:
+    st.subheader("Recent live forecast — Real vs Beacon vs ISO-NE")
+    st.markdown(
+        "The most recent weeks of live NEMA demand, with Beacon's and ISO New England's "
+        "day-ahead forecasts overlaid — both at the same 24-hour horizon, same weather."
     )
 
     with st.spinner("Loading live ISO-NE data and computing forecasts …"):
         bt = build_recent_comparison(days=COMPARISON_DAYS)
 
     if bt.empty:
-        st.warning(
-            "No live data available. This page needs ISO-NE Web Services credentials "
+        st.info(
+            "Live comparison unavailable — this needs ISO-NE Web Services credentials "
             "(ISO_NE_WS_USER / ISO_NE_WS_PASS)."
         )
         return
 
-    m = compute_metrics(bt)
-    beacon, iso = m.get("catboost", {}), m.get("iso", {})
     latest = bt["datetime"].max()
-
-    # ------------------------------------------------------------------
-    # Compact accuracy header — Beacon vs ISO-NE
-    # ------------------------------------------------------------------
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric(
-        "Beacon MAE",
-        f"{beacon.get('MAE', 0):.1f} MW",
-        delta=f"{beacon.get('MAE', 0) - iso['MAE']:.1f} vs ISO" if iso else None,
-        delta_color="inverse",
-    )
-    c2.metric("ISO-NE MAE", f"{iso.get('MAE', 0):.1f} MW" if iso else "—")
-    c3.metric(
-        "Beacon MAPE",
-        f"{beacon.get('MAPE', 0):.2f}%",
-        delta=f"{beacon.get('MAPE', 0) - iso['MAPE']:.2f} vs ISO" if iso else None,
-        delta_color="inverse",
-    )
-    c4.metric("ISO-NE MAPE", f"{iso.get('MAPE', 0):.2f}%" if iso else "—")
-
     st.caption(
-        f"Data through **{latest:%b %d, %Y %H:%M}** · {len(bt):,} hours evaluated · "
-        "actual = ISO-NE real-time demand · both forecasts at 24 h ahead."
+        f"Live data through **{latest:%b %d, %Y %H:%M}** · {len(bt):,} hours · "
+        "actual = ISO-NE real-time demand · forecasts at 24 h ahead."
     )
 
-    # ------------------------------------------------------------------
-    # Hero time-series — Actual vs Beacon vs ISO-NE
-    # ------------------------------------------------------------------
     choice = st.radio("Window", list(_WINDOWS), index=1, horizontal=True, label_visibility="collapsed")
     win = bt.tail(_WINDOWS[choice])
 
@@ -104,7 +143,7 @@ def render() -> None:
         yaxis_title="Load (MW)",
         template="plotly_white",
         legend={"orientation": "h", "y": 1.08},
-        height=480,
+        height=460,
         margin={"t": 30, "b": 40, "l": 60, "r": 20},
         hovermode="x unified",
     )
