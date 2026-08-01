@@ -20,10 +20,13 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 
 from nema_forecast.config import (
@@ -37,6 +40,10 @@ from nema_forecast.config import (
 logger = logging.getLogger(__name__)
 
 _SESSION: requests.Session | None = None
+
+# Bounded concurrency for the per-day fetches. Moderate (well under the burst rate that
+# trips ISO-NE's abuse protection) and paired with the 429 backoff in ``_fetch_and_parse``.
+_MAX_WORKERS = 5
 
 # Timezone of ISO-NE BeginDate timestamps. We convert to local wall-clock and drop the
 # offset so the series aligns with the calendar features (which key off local hour).
@@ -58,6 +65,9 @@ def _ws_session() -> requests.Session:
     sess = requests.Session()
     sess.auth = HTTPBasicAuth(ISO_NE_WS_USER, ISO_NE_WS_PASS)
     sess.headers.update({"Accept": "application/json"})
+    # Size the connection pool for the bounded-concurrency per-day fetches.
+    adapter = HTTPAdapter(pool_connections=_MAX_WORKERS, pool_maxsize=_MAX_WORKERS)
+    sess.mount("https://", adapter)
     _SESSION = sess
     return _SESSION
 
@@ -100,21 +110,10 @@ def fetch_realtime_demand_recent(
     """Fetch the most recent *days_back* days of real-time demand, concatenated.
 
     The current and previous day are always force-refreshed (they fill in through the
-    day); older days come from cache. Returns ``[datetime, RTLO]`` sorted ascending.
+    day); older days come from cache. Days are fetched with bounded concurrency. Returns
+    ``[datetime, RTLO]`` sorted ascending.
     """
-    today = datetime.now().date()
-    frames: list[pd.DataFrame] = []
-    for offset in range(days_back, -1, -1):
-        d = today - timedelta(days=offset)
-        force = offset <= 1
-        try:
-            df = fetch_realtime_demand_day(datetime(d.year, d.month, d.day), location_id, force_refresh=force)
-            if not df.empty:
-                frames.append(df)
-        except Exception as exc:
-            logger.warning("Real-time demand fetch failed for %s: %s", d, exc)
-
-    return _combine(frames)
+    return _fetch_recent(days_back, location_id, fetch_realtime_demand_day, force_recent=True, value_col="RTLO")
 
 
 # ---------------------------------------------------------------------------
@@ -147,19 +146,40 @@ def fetch_dayahead_demand_recent(
     location_id: int = ISO_NE_LOCATION_ID,
 ) -> pd.DataFrame:
     """Fetch the most recent *days_back* days of day-ahead demand, concatenated."""
-    today = datetime.now().date()
-    frames: list[pd.DataFrame] = []
-    for offset in range(days_back, -1, -1):
-        d = today - timedelta(days=offset)
-        try:
-            df = fetch_dayahead_demand_day(datetime(d.year, d.month, d.day), location_id)
-            if not df.empty:
-                frames.append(df)
-        except Exception as exc:
-            logger.warning("Day-ahead demand fetch failed for %s: %s", d, exc)
-        time.sleep(0.1)
+    return _fetch_recent(
+        days_back, location_id, fetch_dayahead_demand_day, force_recent=False, value_col="iso_forecast"
+    )
 
-    return _combine(frames, value_col="iso_forecast")
+
+def _fetch_recent(
+    days_back: int,
+    location_id: int,
+    fetch_day: Callable[..., pd.DataFrame],
+    *,
+    force_recent: bool,
+    value_col: str,
+) -> pd.DataFrame:
+    """Fetch *days_back* days concurrently via *fetch_day*, tolerant of per-day failures."""
+    today = datetime.now().date()
+    try:
+        _ws_session()  # fail fast (and pre-warm) if credentials are missing
+    except RuntimeError as exc:
+        logger.warning("%s", exc)
+        return _combine([], value_col=value_col)
+
+    def _one(offset: int) -> pd.DataFrame:
+        d = today - timedelta(days=offset)
+        kwargs = {"force_refresh": True} if (force_recent and offset <= 1) else {}
+        try:
+            return fetch_day(datetime(d.year, d.month, d.day), location_id, **kwargs)
+        except Exception as exc:  # keep going on a bad day
+            logger.warning("%s fetch failed for %s: %s", value_col, d, exc)
+            return pd.DataFrame(columns=["datetime", value_col])
+
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as ex:
+        frames = [df for df in ex.map(_one, range(days_back, -1, -1)) if not df.empty]
+
+    return _combine(frames, value_col=value_col)
 
 
 # ---------------------------------------------------------------------------

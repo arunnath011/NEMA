@@ -53,6 +53,16 @@ def load_model(path: Path | None = None) -> CatBoostRegressor:
     return model
 
 
+def load_horizon_model(h: int) -> CatBoostRegressor | None:
+    """Load a single per-horizon model ``catboost_h{h:02d}.cbm`` (1-based); None if missing."""
+    path = MODELS_DIR / f"catboost_h{h:02d}.cbm"
+    if not path.exists():
+        return None
+    model = CatBoostRegressor()
+    model.load_model(str(path))
+    return model
+
+
 def load_horizon_models(horizon: int = HORIZON) -> list[CatBoostRegressor] | None:
     """Load per-horizon models ``catboost_h01..hNN.cbm``; None if any are missing."""
     paths = [MODELS_DIR / f"catboost_h{h:02d}.cbm" for h in range(1, horizon + 1)]
@@ -140,8 +150,7 @@ def predict_hindcast(
 ) -> pd.DataFrame:
     """1-hour-ahead rolling hindcast → ``[datetime, actual, forecast_mw]``."""
     if model is None:
-        hm = load_horizon_models(1)
-        model = hm[0] if hm else load_model()
+        model = load_horizon_model(1) or load_model()
     values, feature_cols, rtlo_idx, dts = _engineer(recent_load, recent_weather)
     if len(values) < LOOKBACK + 1:
         return pd.DataFrame(columns=_EMPTY)
@@ -154,14 +163,18 @@ def predict_dayahead_hindcast(
     *,
     max_hours: int | None = None,
 ) -> pd.DataFrame:
-    """24-hour-ahead rolling hindcast (matches ISO's day-ahead horizon)."""
-    hmodels = load_horizon_models()
-    if hmodels is None:
+    """24-hour-ahead rolling hindcast (matches ISO's day-ahead horizon).
+
+    Loads only the h=24 model (not all 24) — this is the heaviest dashboard path, so it
+    saves both time and memory on each cold load.
+    """
+    model = load_horizon_model(HORIZON)
+    if model is None:
         return pd.DataFrame(columns=_EMPTY)
     values, feature_cols, rtlo_idx, dts = _engineer(recent_load, recent_weather)
     if len(values) < LOOKBACK + HORIZON:
         return pd.DataFrame(columns=_EMPTY)
-    return _hindcast(values, feature_cols, rtlo_idx, dts, hmodels[-1], hi=HORIZON - 1, max_hours=max_hours)
+    return _hindcast(values, feature_cols, rtlo_idx, dts, model, hi=HORIZON - 1, max_hours=max_hours)
 
 
 def predict_next_24h(

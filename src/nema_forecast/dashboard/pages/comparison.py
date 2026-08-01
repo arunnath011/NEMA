@@ -18,10 +18,11 @@ from nema_forecast.dashboard.components import (
 )
 from nema_forecast.dashboard.live_data import build_recent_comparison
 
-COMPARISON_DAYS = 30
+# Kept short so the landing page loads fast (fewer live API calls + hindcast points).
+COMPARISON_DAYS = 14
 ISO_ORANGE = "#E67E22"
 
-_WINDOWS = {"Last 7 days": 168, "Last 14 days": 336, "Last 30 days": 720}
+_WINDOWS = {"Last 7 days": 168, "Last 14 days": 336}
 
 
 def render() -> None:
