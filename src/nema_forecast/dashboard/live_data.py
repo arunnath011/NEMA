@@ -18,6 +18,14 @@ from nema_forecast.config import HORIZON, LOOKBACK
 logger = logging.getLogger(__name__)
 
 
+class LiveDataError(Exception):
+    """A live feed the comparison depends on could not be loaded.
+
+    The message names the specific source (ISO-NE demand vs Open-Meteo weather) so the page
+    can show an accurate, actionable reason instead of a generic 'unavailable'.
+    """
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_model_weather() -> pd.DataFrame:
     """Open-Meteo recent + forecast hourly weather (the same source the model trains on).
@@ -52,20 +60,27 @@ def build_recent_comparison(days: int = 30) -> pd.DataFrame:
 
     cols = ["datetime", "actual", "catboost_pred", "iso_forecast"]
 
-    # The day-ahead forecast is weather-dominated; without weather it is meaningless (MAE
-    # jumps ~4x). If weather is genuinely unavailable, return empty so the page shows an
-    # honest "unavailable" message rather than a misleading weather-blind forecast.
+    # Fetch enough actuals to cover the comparison window *plus* the lookback + day-ahead offset.
+    # ISO-NE demand needs credentials (or can be briefly rate-limited); surface that distinctly.
+    actual = fetch_realtime_demand_recent(days_back=days + 12)
+    if actual.empty or len(actual) < LOOKBACK + HORIZON + 1:
+        logger.warning("Not enough real-time demand to build comparison (%d rows)", len(actual))
+        raise LiveDataError(
+            "the live **ISO-NE demand** feed returned no data — this needs the ISO-NE Web "
+            "Services credentials (`ISO_NE_WS_USER` / `ISO_NE_WS_PASS`) set in Streamlit "
+            "secrets, or it may be a brief rate limit."
+        )
+
+    # The day-ahead forecast is weather-dominated; without weather it is meaningless (MAE jumps
+    # ~4x). Open-Meteo is keyless, so a failure here is a network/rate-limit issue, not a secret.
     try:
         weather = get_model_weather()
     except Exception as exc:
         logger.warning("Weather unavailable, skipping live comparison: %s", exc)
-        return pd.DataFrame(columns=cols)
-
-    # Fetch enough actuals to cover the comparison window *plus* the lookback + day-ahead offset.
-    actual = fetch_realtime_demand_recent(days_back=days + 12)
-    if actual.empty or len(actual) < LOOKBACK + HORIZON + 1:
-        logger.warning("Not enough real-time demand to build comparison (%d rows)", len(actual))
-        return pd.DataFrame(columns=cols)
+        raise LiveDataError(
+            "the **Open-Meteo weather** feed could not be reached (it is keyless, so this is a "
+            "temporary network/rate-limit issue on the host, not a credentials problem)."
+        ) from exc
 
     hind = predict_dayahead_hindcast(actual, weather, max_hours=days * 24)
     if hind.empty:

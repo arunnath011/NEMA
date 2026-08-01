@@ -16,7 +16,7 @@ from nema_forecast.dashboard.components import (
     load_horizon_mae,
     load_metrics,
 )
-from nema_forecast.dashboard.live_data import build_recent_comparison
+from nema_forecast.dashboard.live_data import LiveDataError, build_recent_comparison
 
 # Kept short so the landing page loads fast (fewer live API calls + hindcast points).
 COMPARISON_DAYS = 14
@@ -92,14 +92,18 @@ def _recent_live_section() -> None:
         "day-ahead forecasts overlaid — both at the same 24-hour horizon, same weather."
     )
 
-    with st.spinner("Loading live ISO-NE data and computing forecasts …"):
-        bt = build_recent_comparison(days=COMPARISON_DAYS)
+    try:
+        with st.spinner("Loading live ISO-NE data and computing forecasts …"):
+            bt = build_recent_comparison(days=COMPARISON_DAYS)
+    except LiveDataError as exc:
+        st.info(
+            f"Live comparison temporarily unavailable — {exc} The held-out full-year results "
+            "above are unaffected; the live view should recover on the next refresh."
+        )
+        return
 
     if bt.empty:
-        st.info(
-            "Live comparison unavailable — this needs ISO-NE Web Services credentials "
-            "(ISO_NE_WS_USER / ISO_NE_WS_PASS)."
-        )
+        st.info("Live comparison unavailable — no overlapping live hours to score yet.")
         return
 
     latest = bt["datetime"].max()

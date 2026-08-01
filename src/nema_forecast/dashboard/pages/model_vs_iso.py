@@ -18,7 +18,7 @@ from nema_forecast.dashboard.components import (
     scatter_chart,
     timeseries_chart,
 )
-from nema_forecast.dashboard.live_data import build_recent_comparison
+from nema_forecast.dashboard.live_data import LiveDataError, build_recent_comparison
 from nema_forecast.model.backtest import compute_hourly_metrics, compute_monthly_metrics
 
 COMPARISON_DAYS = 30
@@ -33,14 +33,15 @@ def render() -> None:
         "Open-Meteo weather forecast — an apples-to-apples comparison."
     )
 
-    with st.spinner("Building live comparison from ISO-NE data …"):
-        bt = build_recent_comparison(days=COMPARISON_DAYS)
+    try:
+        with st.spinner("Building live comparison from ISO-NE data …"):
+            bt = build_recent_comparison(days=COMPARISON_DAYS)
+    except LiveDataError as exc:
+        st.warning(f"No live comparison data available — {exc} It should recover on the next refresh.")
+        return
 
     if bt.empty:
-        st.warning(
-            "No live comparison data available. This page needs ISO-NE Web Services "
-            "credentials (ISO_NE_WS_USER / ISO_NE_WS_PASS) and the trained model."
-        )
+        st.warning("No live comparison data available — no overlapping live hours to score yet.")
         return
 
     latest = bt["datetime"].max()
