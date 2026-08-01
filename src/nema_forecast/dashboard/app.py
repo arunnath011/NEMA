@@ -7,9 +7,19 @@ Launch with::
 
 from __future__ import annotations
 
-import streamlit as st
+import sys
+from pathlib import Path
 
-from nema_forecast.dashboard.pages import (
+# Ensure the `nema_forecast` package is importable when this file is run directly
+# (e.g. `streamlit run src/nema_forecast/dashboard/app.py` on Streamlit Community Cloud),
+# where the src/ layout is not on sys.path and the package is not pip-installed.
+_SRC = Path(__file__).resolve().parents[2]
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+import streamlit as st  # noqa: E402
+
+from nema_forecast.dashboard.pages import (  # noqa: E402
     diagnostics,
     executive_summary,
     how_it_works,
