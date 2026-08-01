@@ -33,3 +33,6 @@ data/cache/*.parquet
 Thumbs.db
 
 catboost_info/
+
+# Local editor/AI rules files
+*.mdc
