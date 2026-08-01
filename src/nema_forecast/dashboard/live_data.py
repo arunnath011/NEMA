@@ -20,10 +20,17 @@ logger = logging.getLogger(__name__)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_model_weather() -> pd.DataFrame:
-    """Open-Meteo recent + forecast hourly weather (the same source the model trains on)."""
+    """Open-Meteo recent + forecast hourly weather (the same source the model trains on).
+
+    Raises on an empty result so a transient fetch failure is **not** cached — otherwise the
+    day-ahead forecast would silently run weather-blind (much higher error) for a full hour.
+    """
     from nema_forecast.data.open_meteo import fetch_recent_weather
 
-    return fetch_recent_weather(past_days=92, forecast_days=5)
+    wx = fetch_recent_weather(past_days=92, forecast_days=5)
+    if wx.empty:
+        raise RuntimeError("Open-Meteo weather fetch returned no data")
+    return wx
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -43,9 +50,16 @@ def build_recent_comparison(days: int = 30) -> pd.DataFrame:
     )
     from nema_forecast.model.inference import predict_dayahead_hindcast
 
-    weather = get_model_weather()
-
     cols = ["datetime", "actual", "catboost_pred", "iso_forecast"]
+
+    # The day-ahead forecast is weather-dominated; without weather it is meaningless (MAE
+    # jumps ~4x). If weather is genuinely unavailable, return empty so the page shows an
+    # honest "unavailable" message rather than a misleading weather-blind forecast.
+    try:
+        weather = get_model_weather()
+    except Exception as exc:
+        logger.warning("Weather unavailable, skipping live comparison: %s", exc)
+        return pd.DataFrame(columns=cols)
 
     # Fetch enough actuals to cover the comparison window *plus* the lookback + day-ahead offset.
     actual = fetch_realtime_demand_recent(days_back=days + 12)

@@ -19,6 +19,7 @@ original data).
 from __future__ import annotations
 
 import logging
+import time
 
 import pandas as pd
 import requests
@@ -71,14 +72,33 @@ def _parse(payload: dict) -> pd.DataFrame:
     return df
 
 
-def _get(url: str, params: dict) -> pd.DataFrame:
-    try:
-        resp = requests.get(url, params=params, timeout=120)
-        resp.raise_for_status()
-        return _parse(resp.json())
-    except (requests.RequestException, ValueError) as exc:
-        logger.warning("Open-Meteo request failed (%s): %s", url, exc)
-        return pd.DataFrame(columns=_COLUMNS)
+def _get(url: str, params: dict, *, retries: int = 4) -> pd.DataFrame:
+    """GET + parse an Open-Meteo response, retrying transient failures and rate limits.
+
+    Weather is the dominant driver of the day-ahead forecast, so a failed fetch (which would
+    silently fall back to median weather) is retried with exponential backoff, honouring any
+    ``Retry-After`` header. Returns an empty frame only if every attempt fails.
+    """
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, params=params, timeout=60)
+        except requests.RequestException as exc:
+            logger.warning("Open-Meteo connection error (%s); retry in %ds", exc, 2**attempt)
+            time.sleep(2**attempt)
+            continue
+        if resp.status_code == 429 or resp.status_code >= 500:
+            wait = float(resp.headers.get("Retry-After", 2**attempt))
+            logger.warning("Open-Meteo %d; backing off %.0fs (%d/%d)", resp.status_code, wait, attempt + 1, retries)
+            time.sleep(min(wait, 30))
+            continue
+        try:
+            resp.raise_for_status()
+            return _parse(resp.json())
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("Open-Meteo request failed (%s): %s", url, exc)
+            return pd.DataFrame(columns=_COLUMNS)
+    logger.warning("Open-Meteo gave up after %d retries: %s", retries, url)
+    return pd.DataFrame(columns=_COLUMNS)
 
 
 def fetch_archive_weather(start_date: str, end_date: str, *, force_refresh: bool = False) -> pd.DataFrame:
