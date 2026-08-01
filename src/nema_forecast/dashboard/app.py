@@ -20,8 +20,8 @@ if str(_SRC) not in sys.path:
 import streamlit as st  # noqa: E402
 
 from nema_forecast.dashboard.pages import (  # noqa: E402
+    comparison,
     diagnostics,
-    executive_summary,
     how_it_works,
     live_forecast,
     model_vs_iso,
@@ -50,7 +50,7 @@ def main() -> None:
         page = st.radio(
             "Navigation",
             [
-                "Executive Summary",
+                "Forecast Comparison",
                 "Live Forecast",
                 "Model vs ISO-NE",
                 "Diagnostics",
@@ -60,12 +60,12 @@ def main() -> None:
         )
 
         st.divider()
-        st.caption("Data: ISO-NE · OpenWeatherMap")
+        st.caption("Data: ISO-NE · Open-Meteo")
         st.caption("Model: Beacon v1.0")
 
     # --- Page dispatch ---
-    if page == "Executive Summary":
-        executive_summary.render()
+    if page == "Forecast Comparison":
+        comparison.render()
     elif page == "Live Forecast":
         live_forecast.render()
     elif page == "Model vs ISO-NE":
