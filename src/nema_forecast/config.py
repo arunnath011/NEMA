@@ -26,6 +26,10 @@ def _get_secret(key: str, default: str = "") -> str:
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = PROJECT_ROOT / "models"
 DATA_CACHE_DIR = PROJECT_ROOT / "data" / "cache"
+# Committed recent-weather snapshot (tracked, not gitignored). Refreshed by a scheduled
+# GitHub Action from GitHub's IP, so serving works even where the deploy host's shared IP is
+# rate-limited by Open-Meteo. See scripts/refresh_weather_snapshot.py.
+WEATHER_SNAPSHOT_PATH = PROJECT_ROOT / "data" / "weather_snapshot.parquet"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 DATA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 

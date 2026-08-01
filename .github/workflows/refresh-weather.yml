@@ -1,0 +1,47 @@
+name: Refresh weather snapshot
+
+# Keeps data/weather_snapshot.parquet fresh so the deployed dashboard has recent Open-Meteo
+# weather even though Streamlit Cloud's shared IP is rate-limited by Open-Meteo. GitHub's
+# runners use unblocked IPs. Open-Meteo is keyless, so no secrets are needed.
+
+on:
+  schedule:
+    - cron: "20 6 * * *" # daily at 06:20 UTC (well within the ~2-3 day ISO-NE demand lag)
+  workflow_dispatch: {} # allow manual runs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-weather
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        run: pip install pandas pyarrow requests python-dotenv
+
+      - name: Refresh snapshot
+        env:
+          PYTHONPATH: src
+        run: python scripts/refresh_weather_snapshot.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/weather_snapshot.parquet; then
+            echo "No change in weather snapshot."
+          else
+            git add data/weather_snapshot.parquet
+            git commit -m "Refresh weather snapshot [skip ci]"
+            git push
+          fi

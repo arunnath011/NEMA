@@ -24,7 +24,7 @@ import time
 import pandas as pd
 import requests
 
-from nema_forecast.config import BOSTON_LAT, BOSTON_LON, DATA_CACHE_DIR
+from nema_forecast.config import BOSTON_LAT, BOSTON_LON, DATA_CACHE_DIR, WEATHER_SNAPSHOT_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -112,11 +112,36 @@ def fetch_archive_weather(start_date: str, end_date: str, *, force_refresh: bool
     return df
 
 
-def fetch_recent_weather(past_days: int = 92, forecast_days: int = 5) -> pd.DataFrame:
+def save_weather_snapshot(df: pd.DataFrame) -> None:
+    """Persist *df* as the committed recent-weather snapshot (parquet)."""
+    if not df.empty:
+        WEATHER_SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(WEATHER_SNAPSHOT_PATH, index=False)
+
+
+def fetch_recent_weather(
+    past_days: int = 92, forecast_days: int = 5, *, retries: int = 2, allow_snapshot: bool = True
+) -> pd.DataFrame:
     """Recent + near-future hourly weather (forecast API with ``past_days``).
 
     Covers the live hindcast window (past) and the forward forecast horizon (future) in one
     call. Returns ``[datetime, temp, humidity, wind_speed, dew_point, clouds_all, feels_like,
     visibility]``.
+
+    Some deploy hosts (e.g. Streamlit Community Cloud) share an egress IP that Open-Meteo rate-
+    limits, so a live fetch can fail there indefinitely. When it does, fall back to the committed
+    snapshot (``WEATHER_SNAPSHOT_PATH``), which a scheduled GitHub Action keeps fresh from an
+    unblocked IP. ISO-NE real-time demand lags ~2-3 days, so a daily snapshot always covers the
+    scoreable comparison window. ``retries`` is low here so serving fails over fast rather than
+    hanging on the shared IP.
     """
-    return _get(FORECAST_URL, _params(past_days=min(past_days, 92), forecast_days=min(forecast_days, 16)))
+    df = _get(
+        FORECAST_URL, _params(past_days=min(past_days, 92), forecast_days=min(forecast_days, 16)), retries=retries
+    )
+    if not df.empty:
+        save_weather_snapshot(df)  # keep the on-disk snapshot warm whenever the live API works
+        return df
+    if allow_snapshot and WEATHER_SNAPSHOT_PATH.exists():
+        logger.warning("Open-Meteo live fetch failed; falling back to committed snapshot %s", WEATHER_SNAPSHOT_PATH)
+        return pd.read_parquet(WEATHER_SNAPSHOT_PATH)
+    return df
