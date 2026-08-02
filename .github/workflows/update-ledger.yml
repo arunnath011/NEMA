@@ -5,9 +5,11 @@ name: Update forecast ledger
 # timestamp is the proof each forecast predated its actual. Runs on GitHub's IP (Open-Meteo is
 # not blocked there); needs ISO-NE Web Services credentials as repo secrets.
 
+# NOTE: the daily schedule is disabled because ISO-NE Web Services returns 403 Forbidden to
+# GitHub Actions' datacenter IPs (it allows the Streamlit Cloud app and normal home/office IPs,
+# just not GitHub's runners). The forecast ledger must therefore be refreshed from an environment
+# ISO-NE permits — see scripts/update_forecast_ledger.py. Kept as manual-only for testing.
 on:
-  schedule:
-    - cron: "40 6 * * *" # daily at 06:40 UTC, just after the weather-snapshot refresh
   workflow_dispatch: {}
 
 permissions:
