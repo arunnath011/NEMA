@@ -8,6 +8,7 @@ rolling hindcast, and ISO-NE's day-ahead demand (the benchmark). Cached for one 
 from __future__ import annotations
 
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,19 @@ import streamlit as st
 from nema_forecast.config import HORIZON, LOOKBACK
 
 logger = logging.getLogger(__name__)
+
+_LEDGER_REPO_DEFAULT = "arunnath011/NEMA"
+
+
+def _secret(name: str) -> str | None:
+    """Read *name* from Streamlit secrets first, then the environment (None if unset/empty)."""
+    try:
+        val = st.secrets.get(name)  # type: ignore[no-untyped-call]
+        if val:
+            return str(val)
+    except (FileNotFoundError, AttributeError):
+        pass
+    return os.getenv(name) or None
 
 
 class LiveDataError(Exception):
@@ -94,3 +108,39 @@ def build_recent_comparison(days: int = 30) -> pd.DataFrame:
         df["iso_forecast"] = np.nan
 
     return df[cols].sort_values("datetime").reset_index(drop=True)
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def maybe_update_and_load_ledger() -> pd.DataFrame:
+    """Return the forecast ledger, refreshing + committing it first when a token is configured.
+
+    ISO-NE blocks GitHub Actions, but this app can reach ISO-NE, so it maintains the ledger
+    itself: it locks the newest day-ahead forecast, scores matured rows, and — when the ledger
+    actually changes — commits the CSV via the GitHub API (``GH_LEDGER_TOKEN`` in secrets). The
+    commit triggers a redeploy; on the next load there is no change, so it settles. Without a
+    token it is read-only: it just returns the committed ledger. Cached (6 h) so the model/API
+    work runs at most a few times a day.
+    """
+    from nema_forecast.forecast_ledger import load_ledger
+
+    token = _secret("GH_LEDGER_TOKEN")
+    if not token:
+        return load_ledger()
+
+    from nema_forecast.config import LEDGER_PATH, PROJECT_ROOT
+    from nema_forecast.forecast_ledger import save_ledger, to_csv
+    from nema_forecast.github_ledger import commit_text_file
+    from nema_forecast.ledger_update import refresh_ledger
+
+    try:
+        ledger, changed = refresh_ledger()
+    except Exception as exc:  # never let ledger maintenance break the page
+        logger.warning("Ledger refresh failed: %s", exc)
+        return load_ledger()
+
+    if changed:
+        repo = _secret("GH_LEDGER_REPO") or _LEDGER_REPO_DEFAULT
+        path = LEDGER_PATH.relative_to(PROJECT_ROOT).as_posix()
+        if commit_text_file(path, to_csv(ledger), "Update forecast ledger [skip ci]", token=token, repo=repo):
+            save_ledger(ledger)  # reflect in this container until the redeploy picks up the commit
+    return ledger

@@ -13,7 +13,8 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from nema_forecast.dashboard.components import BLUE, GREEN
-from nema_forecast.forecast_ledger import load_ledger, summarize
+from nema_forecast.dashboard.live_data import maybe_update_and_load_ledger
+from nema_forecast.forecast_ledger import summarize
 
 ISO_ORANGE = "#E67E22"
 SHADE = "rgba(230, 126, 34, 0.08)"
@@ -32,7 +33,8 @@ def render() -> None:
         "each day — it is never back-filled from data already in hand."
     )
 
-    ledger = load_ledger()
+    with st.spinner("Checking for a new locked forecast …"):
+        ledger = maybe_update_and_load_ledger()
     if ledger.empty:
         st.info("The track record has not been seeded yet — the first locked forecast appears after the next run.")
         return

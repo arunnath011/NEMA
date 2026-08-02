@@ -58,14 +58,19 @@ def _coerce(df: pd.DataFrame) -> pd.DataFrame:
 def load_ledger() -> pd.DataFrame:
     """Load the committed ledger (empty, correctly-typed frame if it does not exist yet)."""
     if LEDGER_PATH.exists():
-        return _coerce(pd.read_parquet(LEDGER_PATH))
+        return _coerce(pd.read_csv(LEDGER_PATH))
     return _coerce(pd.DataFrame(columns=LEDGER_COLUMNS))
 
 
+def to_csv(df: pd.DataFrame) -> str:
+    """Serialise the ledger to CSV text (the exact bytes committed to git)."""
+    return _coerce(df).to_csv(index=False)
+
+
 def save_ledger(df: pd.DataFrame) -> None:
-    """Persist the ledger to ``LEDGER_PATH`` (parquet)."""
+    """Persist the ledger to ``LEDGER_PATH`` (CSV — readable diffs in git history)."""
     LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _coerce(df).to_parquet(LEDGER_PATH, index=False)
+    LEDGER_PATH.write_text(to_csv(df))
 
 
 def append_forecasts(ledger: pd.DataFrame, new_rows: pd.DataFrame) -> pd.DataFrame:

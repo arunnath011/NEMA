@@ -32,8 +32,10 @@ DATA_CACHE_DIR = PROJECT_ROOT / "data" / "cache"
 WEATHER_SNAPSHOT_PATH = PROJECT_ROOT / "data" / "weather_snapshot.parquet"
 # Append-only, git-committed forecast ledger: Beacon's day-ahead forecasts written *before*
 # ISO-NE publishes the matching actuals, so the commit history proves the forecast predated
-# the data. See src/nema_forecast/forecast_ledger.py and scripts/update_forecast_ledger.py.
-LEDGER_PATH = PROJECT_ROOT / "data" / "forecast_ledger.parquet"
+# the data. Stored as CSV so each commit's added rows are human-readable in the git diff (a
+# stronger, legible proof than an opaque binary). The deployed app refreshes it via the GitHub
+# API — ISO-NE blocks GitHub Actions IPs, so the refresh cannot run in CI.
+LEDGER_PATH = PROJECT_ROOT / "data" / "forecast_ledger.csv"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 DATA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
