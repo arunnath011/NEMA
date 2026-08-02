@@ -40,8 +40,18 @@ jobs:
           git config user.email "53822804+arunnath011@users.noreply.github.com"
           if git diff --quiet -- data/weather_snapshot.parquet; then
             echo "No change in weather snapshot."
-          else
-            git add data/weather_snapshot.parquet
-            git commit -m "Refresh weather snapshot [skip ci]"
-            git push
+            exit 0
           fi
+          git add data/weather_snapshot.parquet
+          git commit -m "Refresh weather snapshot [skip ci]"
+          # Rebase-and-retry so a concurrent push to main doesn't fail the run.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected; rebasing on latest main (attempt $attempt)…"
+            git pull --rebase --autostash origin main || exit 1
+          done
+          echo "Failed to push after 5 attempts."
+          exit 1
