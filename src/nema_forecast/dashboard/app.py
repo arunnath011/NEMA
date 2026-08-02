@@ -25,6 +25,7 @@ from nema_forecast.dashboard.pages import (  # noqa: E402
     how_it_works,
     live_forecast,
     model_vs_iso,
+    track_record,
 )
 
 
@@ -51,6 +52,7 @@ def main() -> None:
             "Navigation",
             [
                 "Forecast Comparison",
+                "Live Track Record",
                 "Live Forecast",
                 "Model vs ISO-NE",
                 "Diagnostics",
@@ -66,6 +68,8 @@ def main() -> None:
     # --- Page dispatch ---
     if page == "Forecast Comparison":
         comparison.render()
+    elif page == "Live Track Record":
+        track_record.render()
     elif page == "Live Forecast":
         live_forecast.render()
     elif page == "Model vs ISO-NE":

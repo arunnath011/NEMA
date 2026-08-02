@@ -89,7 +89,9 @@ def _recent_live_section() -> None:
     st.subheader("Recent live forecast — Real vs Beacon vs ISO-NE")
     st.markdown(
         "The most recent weeks of live NEMA demand, with Beacon's and ISO New England's "
-        "day-ahead forecasts overlaid — both at the same 24-hour horizon, same weather."
+        "day-ahead forecasts overlaid — both at the same 24-hour horizon, same weather. This is "
+        "recomputed on demand over already-published data; for forecasts **locked in git before "
+        "the actuals were published**, see the **Live Track Record** page."
     )
 
     try:

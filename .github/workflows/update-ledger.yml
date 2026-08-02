@@ -1,0 +1,50 @@
+name: Update forecast ledger
+
+# Locks a fresh day-ahead forecast into data/forecast_ledger.parquet BEFORE ISO-NE publishes
+# the matching actuals, and scores rows whose actuals have since been published. The git commit
+# timestamp is the proof each forecast predated its actual. Runs on GitHub's IP (Open-Meteo is
+# not blocked there); needs ISO-NE Web Services credentials as repo secrets.
+
+on:
+  schedule:
+    - cron: "40 6 * * *" # daily at 06:40 UTC, just after the weather-snapshot refresh
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-ledger
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Lock + score forecasts
+        env:
+          ISO_NE_WS_USER: ${{ secrets.ISO_NE_WS_USER }}
+          ISO_NE_WS_PASS: ${{ secrets.ISO_NE_WS_PASS }}
+        run: python scripts/update_forecast_ledger.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "Arun Surendranath"
+          git config user.email "53822804+arunnath011@users.noreply.github.com"
+          if git diff --quiet -- data/forecast_ledger.parquet; then
+            echo "No change in forecast ledger."
+          else
+            git add data/forecast_ledger.parquet
+            git commit -m "Update forecast ledger [skip ci]"
+            git push
+          fi
