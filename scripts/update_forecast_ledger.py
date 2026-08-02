@@ -18,7 +18,7 @@ import sys
 
 import pandas as pd
 
-from nema_forecast.config import LEDGER_PATH, LOOKBACK
+from nema_forecast.config import ISO_NE_WS_PASS, ISO_NE_WS_USER, LEDGER_PATH, LOOKBACK
 from nema_forecast.data.iso_ne_ws import fetch_dayahead_demand_recent, fetch_realtime_demand_recent
 from nema_forecast.data.open_meteo import fetch_recent_weather
 from nema_forecast.forecast_ledger import append_forecasts, load_ledger, save_ledger, score_pending, summarize
@@ -26,9 +26,22 @@ from nema_forecast.model.inference import load_model, predict_next_24h
 
 
 def main() -> int:
+    if not ISO_NE_WS_USER or not ISO_NE_WS_PASS:
+        print(
+            "ERROR: ISO_NE_WS_USER / ISO_NE_WS_PASS are not set. In GitHub, add them under "
+            "Settings → Secrets and variables → Actions → New repository secret (they are the "
+            "same ISO-NE Web Services credentials the app uses). Ledger unchanged.",
+            file=sys.stderr,
+        )
+        return 1
+
     load = fetch_realtime_demand_recent(days_back=16)
     if load.empty or len(load) < LOOKBACK + 1:
-        print(f"ERROR: not enough ISO-NE real-time demand ({len(load)} rows); ledger unchanged.", file=sys.stderr)
+        print(
+            f"ERROR: not enough ISO-NE real-time demand ({len(load)} rows) — credentials may be "
+            "wrong or ISO-NE may be briefly unavailable. Ledger unchanged.",
+            file=sys.stderr,
+        )
         return 1
 
     weather = fetch_recent_weather(past_days=92, forecast_days=16)
