@@ -17,6 +17,7 @@ always populated. If weather is missing it falls back to training medians.
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -237,3 +238,74 @@ def predict_next_24h(
         preds.append(p)
         out_dates.append(dts[tr])
     return pd.DataFrame({"datetime": out_dates, "forecast_mw": preds})
+
+
+# ---------------------------------------------------------------------------
+# Calendar-future "Outlook" — pooled long-horizon model (see model.train_outlook)
+# ---------------------------------------------------------------------------
+
+_OUTLOOK_EMPTY = ["datetime", "forecast_mw", "lead_h"]
+
+
+def load_outlook_model() -> tuple[CatBoostRegressor, dict] | tuple[None, None]:
+    """Load the pooled Outlook model + its metadata (None, None if not trained yet)."""
+    path = MODELS_DIR / "catboost_outlook.cbm"
+    meta_path = MODELS_DIR / "outlook_meta.json"
+    if not path.exists() or not meta_path.exists():
+        return None, None
+    model = CatBoostRegressor()
+    model.load_model(str(path))
+    return model, json.loads(meta_path.read_text())
+
+
+def predict_outlook(
+    recent_load: pd.DataFrame,
+    recent_weather: pd.DataFrame,
+    *,
+    min_lead: int | None = None,
+    max_lead: int | None = None,
+) -> pd.DataFrame:
+    """Calendar-future forecast for the hours after the last known load, at each *lead*.
+
+    Uses the pooled long-horizon model: feature vector ``[lag features, target-hour exog,
+    lead_h]`` — identical to training. ``lead`` is hours from the last actual to the target, so
+    given the ~2-3 day ISO lag these targets are genuinely calendar-future (their actuals are not
+    published yet). Returns ``[datetime, forecast_mw, lead_h]``.
+
+    The target-hour weather must extend far enough ahead; callers pass weather with a sufficient
+    forecast horizon (the day-ahead hindcast weather at ``forecast_days>=8`` covers ``max_lead``).
+    """
+    model, meta = load_outlook_model()
+    if model is None or meta is None:
+        return pd.DataFrame(columns=_OUTLOOK_EMPTY)
+    lo = min_lead or int(meta["min_lead"])
+    hi = max_lead or int(meta["max_lead"])
+
+    load = recent_load[["datetime", "RTLO"]].copy()
+    load["datetime"] = pd.to_datetime(load["datetime"]).dt.floor("h")
+    load = load.dropna(subset=["RTLO"]).drop_duplicates("datetime").sort_values("datetime")
+    if len(load) < LOOKBACK:
+        return pd.DataFrame(columns=_OUTLOOK_EMPTY)
+
+    last_dt = load["datetime"].max()
+    future_dates = pd.date_range(last_dt + pd.Timedelta(hours=1), periods=hi, freq="h")
+    values, feature_cols, rtlo_idx, dts = _engineer(recent_load, recent_weather, future_dates=future_dates)
+    exog_idx = target_exog_indices(feature_cols)
+
+    obs = np.where(dts <= np.datetime64(last_dt))[0]
+    if len(obs) < LOOKBACK:
+        return pd.DataFrame(columns=_OUTLOOK_EMPTY)
+    t = int(obs[-1])  # forecast origin = last observed hour
+    window = values[t - LOOKBACK + 1 : t + 1][np.newaxis, :, :]
+    x_gb, _ = extract_lag_features(window, feature_cols, rtlo_idx)
+
+    preds, out_dates, out_leads = [], [], []
+    for lead in range(lo, hi + 1):
+        tr = t + lead
+        if tr >= len(values):
+            break
+        x_aug = np.hstack([x_gb, values[tr, exog_idx][np.newaxis, :], np.array([[float(lead)]])])
+        preds.append(float(model.predict(x_aug)[0]))
+        out_dates.append(dts[tr])
+        out_leads.append(lead)
+    return pd.DataFrame({"datetime": out_dates, "forecast_mw": preds, "lead_h": out_leads})

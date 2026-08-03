@@ -49,7 +49,8 @@ def get_model_weather() -> pd.DataFrame:
     """
     from nema_forecast.data.open_meteo import fetch_recent_weather
 
-    wx = fetch_recent_weather(past_days=92, forecast_days=5)
+    # forecast_days=8 (192 h) covers the day-ahead hindcast *and* the +4-day Outlook horizon.
+    wx = fetch_recent_weather(past_days=92, forecast_days=8)
     if wx.empty:
         raise RuntimeError("Open-Meteo weather fetch returned no data")
     return wx
@@ -108,6 +109,30 @@ def build_recent_comparison(days: int = 30) -> pd.DataFrame:
         df["iso_forecast"] = np.nan
 
     return df[cols].sort_values("datetime").reset_index(drop=True)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_outlook() -> pd.DataFrame:
+    """Beacon's calendar-future Outlook: forecast for the hours after the latest ISO-NE actual.
+
+    Returns ``[datetime, forecast_mw, lead_h]`` for leads up to the model's max (~+4 days). These
+    hours' actuals are not published yet, so this is a genuine forward forecast. Empty if the
+    Outlook model or the live feeds are unavailable.
+    """
+    from nema_forecast.data.iso_ne_ws import fetch_realtime_demand_recent
+    from nema_forecast.model.inference import predict_outlook
+
+    cols = ["datetime", "forecast_mw", "lead_h"]
+    try:
+        weather = get_model_weather()
+    except Exception as exc:
+        logger.warning("Outlook: weather unavailable (%s)", exc)
+        return pd.DataFrame(columns=cols)
+    actual = fetch_realtime_demand_recent(days_back=14)
+    if actual.empty or len(actual) < LOOKBACK + 1:
+        logger.warning("Outlook: insufficient ISO-NE demand (%d rows)", len(actual))
+        return pd.DataFrame(columns=cols)
+    return predict_outlook(actual, weather)
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
