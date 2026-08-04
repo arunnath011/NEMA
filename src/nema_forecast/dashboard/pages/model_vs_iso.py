@@ -18,26 +18,15 @@ from nema_forecast.dashboard.components import (
     scatter_chart,
     timeseries_chart,
 )
-from nema_forecast.dashboard.live_data import LiveDataError, build_recent_comparison, get_outlook
+from nema_forecast.dashboard.live_data import LiveDataError, build_recent_comparison
+from nema_forecast.dashboard.outlook_view import render_outlook
 from nema_forecast.model.backtest import compute_hourly_metrics, compute_monthly_metrics
 
 COMPARISON_DAYS = 30
-ISO_ORANGE = "#E67E22"
-OUTLOOK_GREEN = "#16A085"  # Beacon's forward Outlook — distinct from the day-ahead green
-OUTLOOK_SHADE = "rgba(22, 160, 133, 0.07)"
-
-
-def _outlook_meta() -> dict:
-    import json
-
-    from nema_forecast.config import MODELS_DIR
-
-    path = MODELS_DIR / "outlook_meta.json"
-    return json.loads(path.read_text()) if path.exists() else {}
 
 
 def _outlook_section(bt: pd.DataFrame) -> None:
-    """Beacon's calendar-future Outlook, contrasted with the recent live day-ahead comparison."""
+    """Beacon's calendar-future Outlook (shared with the landing hero), framed analytically here."""
     st.subheader("Calendar-future Outlook — forecasting past the data lag")
     st.markdown(
         "ISO-NE publishes NEMA zonal actuals on a **~2-3 day lag**, so the horizon-matched "
@@ -46,97 +35,7 @@ def _outlook_section(bt: pd.DataFrame) -> None:
         "ahead**, on dates whose actuals do not exist yet. Past the one-week lag window the "
         "forecast rides on the weather forecast and calendar, so its accuracy stays roughly flat."
     )
-
-    outlook = get_outlook()
-    if outlook.empty:
-        st.info(
-            "Outlook temporarily unavailable — it needs the live ISO-NE feed, weather, and the "
-            "trained Outlook model. The comparison below is unaffected."
-        )
-        return
-
-    scored = bt.dropna(subset=["actual"])
-    last_actual = scored["datetime"].max() if not scored.empty else bt["datetime"].max()
-    recent = bt[bt["datetime"] >= last_actual - pd.Timedelta(days=10)]
-
-    peak = outlook.loc[outlook["forecast_mw"].idxmax()]
-    heldout = _outlook_meta().get("heldout_by_lead", {})
-    mae_d1 = heldout.get("96", {}).get("mae")
-    mae_d4 = heldout.get("168", {}).get("mae")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric(
-        "Predicted peak (next ~4 days)", f"{peak['forecast_mw']:,.0f} MW", help=f"at {peak['datetime']:%b %d, %H:%M}"
-    )
-    c2.metric("Outlook reaches", f"{outlook['datetime'].max():%b %d}")
-    if mae_d1 and mae_d4:
-        c3.metric(
-            "Held-out error (+1d → +4d)", f"{mae_d1:.0f} → {mae_d4:.0f} MW", help="On the strictly held-out year."
-        )
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=recent["datetime"],
-            y=recent["actual"],
-            mode="lines",
-            name="Actual (real demand)",
-            line={"color": BLUE, "width": 2.4},
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=recent["datetime"],
-            y=recent["catboost_pred"],
-            mode="lines",
-            name="Beacon (day-ahead, scored)",
-            line={"color": GREEN, "width": 1.8},
-        )
-    )
-    if "iso_forecast" in recent.columns and recent["iso_forecast"].notna().any():
-        fig.add_trace(
-            go.Scatter(
-                x=recent["datetime"],
-                y=recent["iso_forecast"],
-                mode="lines",
-                name="ISO-NE (day-ahead)",
-                line={"color": ISO_ORANGE, "width": 1.5, "dash": "dot"},
-            )
-        )
-    fig.add_trace(
-        go.Scatter(
-            x=outlook["datetime"],
-            y=outlook["forecast_mw"],
-            mode="lines",
-            name="Beacon Outlook (forecast)",
-            line={"color": OUTLOOK_GREEN, "width": 2.6, "dash": "dash"},
-        )
-    )
-    fig.add_vrect(x0=last_actual, x1=outlook["datetime"].max(), fillcolor=OUTLOOK_SHADE, line_width=0)
-    fig.add_vline(x=last_actual, line_width=1.5, line_dash="dot", line_color=GREY)
-    fig.add_annotation(
-        x=last_actual,
-        y=1.02,
-        yref="paper",
-        showarrow=False,
-        text="latest ISO-NE actual",
-        font={"color": GREY, "size": 11},
-        xanchor="right",
-    )
-    fig.update_layout(
-        yaxis_title="Load (MW)",
-        template="plotly_white",
-        legend={"orientation": "h", "y": 1.12},
-        height=460,
-        margin={"t": 50, "b": 40, "l": 60, "r": 20},
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption(
-        "Left of the marker: Beacon's and ISO-NE's day-ahead forecasts over hours ISO-NE has now "
-        "published (scored against the real demand). Right of the marker: Beacon's Outlook for "
-        "hours not yet published — a real ahead-of-time forecast, not a hindcast."
-    )
+    render_outlook(bt, hero=False, recent_days=10)
 
 
 def render() -> None:
